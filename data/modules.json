@@ -1,0 +1,1677 @@
+{
+  "M1": {
+    "id": "M1",
+    "name": "Token Intelligence in the Engineering Context",
+    "learning_objective": "Identify and classify input, output, and cache tokens and explain how token usage influences cost, latency, and quality in engineering workflows.",
+    "core_mental_model": "Tokens are not just text units; they are budget, latency, and reasoning-capacity constraints.",
+    "in_scope": "Token types, token cost basics, engineering impact, hidden token contributors, simple waste recognition.",
+    "out_of_scope": "Context engineering mechanics, MCP, memory systems, orchestration, advanced optimization patterns.",
+    "one_next_step_template": "Your next step is: label three token contributors in one recent interaction and estimate which one created the most waste.",
+    "concepts": [
+      {
+        "name": "Input Token",
+        "summary": "An input token is any unit of text \u2014 word fragment, word, punctuation, space \u2014 sent to the model before it generates a response. Every character in a system prompt, user message, tool output, and conversation history becomes input tokens the model must process.",
+        "why_it_matters": "Input tokens are the primary cost and latency driver. Every token in the prompt window costs money and adds processing time. Engineers who over-paste context or carry long histories pay for it on every request.",
+        "when_to_use": "When calculating the cost of a prompt, when diagnosing why an API call is slow or expensive, when deciding what to include or exclude from a system prompt.",
+        "when_not_to_use": "Do not confuse with output tokens. Input tokens are consumed before generation begins.",
+        "example": "An engineer pastes a 500-line service file into a prompt. Every line \u2014 including blank lines and comments \u2014 becomes input tokens the model charges for, even if only 20 lines are relevant.",
+        "non_example": "Treating the prompt as free or zero-cost because it is 'just instructions'."
+      },
+      {
+        "name": "Output Token",
+        "summary": "An output token is each unit of text the model generates in its response. Output tokens are metered separately from input tokens and typically cost more per token at most API pricing tiers.",
+        "why_it_matters": "Verbose responses are not free. An engineer who receives a 2,000-token explanation when 200 tokens would suffice has paid 10x the necessary output cost \u2014 and added latency.",
+        "when_to_use": "When reviewing model responses for verbosity, when setting output length constraints, when diagnosing why cost is higher than expected despite a short prompt.",
+        "when_not_to_use": "Do not conflate with input tokens. Output tokens begin after the model starts generating, not before.",
+        "example": "A model asked to 'review this function' returns a 40-paragraph essay including preamble, restated context, and a conclusion. Most of that is output token waste.",
+        "non_example": "Assuming shorter prompts automatically mean shorter outputs. Output verbosity is controlled by instructions, not prompt length."
+      },
+      {
+        "name": "Cache Token",
+        "summary": "Cache tokens are the saved computation from previously processed input that can be reused across requests. When the same prompt prefix appears repeatedly, the model can skip reprocessing it and use the cached key-value state instead.",
+        "why_it_matters": "Prompt caching reduces cost and latency on repeated interactions \u2014 critical for production systems where a long system prompt is sent with every API call. Understanding caching helps engineers decide what to put in static vs dynamic parts of a prompt.",
+        "when_to_use": "When designing system prompts for production agents, when the same large context is reused across many requests, when optimizing high-frequency API calls.",
+        "when_not_to_use": "Do not assume caching is automatic or free \u2014 it requires correct prompt structure and supported API configurations.",
+        "example": "A coding assistant has a 3,000-token system prompt defining its behaviour. With caching, this prefix is processed once and reused for all user turns \u2014 saving 3,000 input tokens per request.",
+        "non_example": "Assuming every API call starts fresh with zero cost savings. Caching is not the same as storing data \u2014 it is saved computation state."
+      },
+      {
+        "name": "KV Cache",
+        "summary": "The KV (key-value) cache stores the intermediate attention computations produced when the model processes input tokens. These stored values allow the model to skip recomputing attention over already-seen tokens on subsequent turns.",
+        "why_it_matters": "KV cache is why context accumulation has a compounding latency cost. Each new turn adds tokens that must either be recomputed or retrieved from cache. Engineers building multi-turn systems need to understand this to design efficient session architectures.",
+        "when_to_use": "When reasoning about why longer sessions get progressively slower, when designing multi-turn workflows, when evaluating whether to reset context or carry it.",
+        "when_not_to_use": "Do not confuse with application-level data caching. KV cache is internal to the model inference process.",
+        "example": "In a 10-turn conversation, the model builds up KV cache over earlier turns. By turn 10, retrieving cached attention is faster than recomputing \u2014 but a bloated history with tool outputs and repeated instructions fills the cache with low-value computation.",
+        "non_example": "Thinking about KV cache as a feature the engineer configures directly. It is an internal model mechanism, not an API setting."
+      },
+      {
+        "name": "Tokenization Boundary",
+        "summary": "Tokenization boundaries are the points at which text is split into tokens. These boundaries do not align with word or sentence boundaries \u2014 they depend on the model's tokenizer, language, and character patterns. Code, punctuation, whitespace, and non-English text tokenize differently from English prose.",
+        "why_it_matters": "Engineers who assume one word equals one token will systematically underestimate token counts. Code is particularly expensive to tokenize \u2014 symbols, indentation, and variable names each consume tokens at rates higher than prose.",
+        "when_to_use": "When estimating prompt cost, when comparing token counts across languages, when evaluating whether to include code snippets or summaries.",
+        "when_not_to_use": "Do not use word count as a token proxy. Always use a tokenizer tool for accurate counts.",
+        "example": "The phrase 'context engineering' may tokenize as ['context', ' engineering'] \u2014 2 tokens. But a line of Python code like 'def calculate_total(items):' may tokenize into 8 or more tokens due to symbols and spacing.",
+        "non_example": "Counting words in a prompt and multiplying by a fixed ratio. Tokenization is language and content specific."
+      },
+      {
+        "name": "Token Cost",
+        "summary": "Token cost is the economic and computational price of each token processed in an API call. Input and output tokens are priced separately. Token cost accumulates across every turn, every session, and every user \u2014 making it a first-order engineering concern in production systems.",
+        "why_it_matters": "Token cost is not a billing footnote \u2014 it is an architecture constraint. At scale, the difference between a well-curated 500-token prompt and a bloated 5,000-token prompt is a 10x cost difference on every API call.",
+        "when_to_use": "When sizing API budgets, when comparing architecture options, when reviewing prompts and skill files for cost efficiency.",
+        "when_not_to_use": "Do not optimise for token count at the expense of relevance. Removing necessary context to save tokens creates worse outputs that require more retries \u2014 which costs more.",
+        "example": "A team's AI feature costs \u00a30.002 per request at 500 tokens. At 10,000 daily requests that is \u00a320/day. A 3x bloated prompt increases this to \u00a360/day \u2014 \u00a314,600/year in waste.",
+        "non_example": "Treating token cost as an infrastructure cost invisible to engineers. In production, token cost is as real as compute cost."
+      },
+      {
+        "name": "Latency Scaling",
+        "summary": "Latency scales with token count. Processing more input tokens takes longer before generation begins. Generating more output tokens takes longer to complete. In multi-turn sessions, accumulated context adds latency at every turn \u2014 not just the first.",
+        "why_it_matters": "For user-facing engineering tools, latency above 3\u20135 seconds feels broken. Token-driven latency is invisible in testing but compounds in production at scale and multi-turn depth.",
+        "when_to_use": "When designing real-time or interactive engineering workflows, when setting performance SLAs, when diagnosing why a feature feels slow in production.",
+        "when_not_to_use": "Do not confuse with network latency. Token processing latency is model-side and scales with prompt size.",
+        "example": "An IDE assistant that loads the entire codebase as context takes 8 seconds to respond. The same assistant using scoped file reads responds in 1.5 seconds \u2014 same model, same task, different token count.",
+        "non_example": "Blaming network speed for slow responses when the real issue is a 10,000-token prompt that takes 4 seconds to process before the model generates a single word."
+      },
+      {
+        "name": "Visible Token Contributor",
+        "summary": "Visible token contributors are the prompt elements an engineer can see and consciously control: the user message, pasted code, file contents, and explicit system instructions. These are the tokens most engineers focus on when thinking about prompt size.",
+        "why_it_matters": "Visible contributors are the starting point for token awareness, but they are not the whole story. Focusing only on visible contributors causes engineers to miss the hidden contributors that often dominate cost and latency.",
+        "when_to_use": "When auditing prompt content, when deciding what to include or summarise, when trimming obvious bloat.",
+        "when_not_to_use": "Do not assume visible contributors are the primary waste driver. Hidden contributors often exceed visible ones in multi-turn sessions.",
+        "example": "An engineer copies a 200-line file into a prompt. They can see and count those 200 lines. That is a visible contributor \u2014 they know it is there and can choose to summarise it instead.",
+        "non_example": "Thinking that reviewing the user message and pasted code covers all token optimisation. Hidden contributors are invisible by definition."
+      },
+      {
+        "name": "Hidden Token Contributor",
+        "summary": "Hidden token contributors are prompt elements that consume tokens without the engineer consciously noticing: accumulated conversation history, repeated system instructions, tool output payloads, intermediate reasoning traces, and retry accumulation from failed attempts.",
+        "why_it_matters": "Hidden contributors are often the largest waste source in production systems. Engineers fix visible contributors and wonder why cost and latency stay high \u2014 the hidden contributors were always the real problem.",
+        "when_to_use": "When diagnosing unexpectedly high token counts, when reviewing multi-turn session logs, when auditing tool output handling.",
+        "when_not_to_use": "Do not ignore hidden contributors when optimising. Trimming visible content while leaving hidden accumulation unchanged produces minimal improvement.",
+        "example": "A debugging session runs 8 turns. Each turn carries the full prior conversation, two tool output payloads from earlier turns, and the repeated system prompt. The visible user message is 50 tokens. The hidden contributors are 4,000 tokens.",
+        "non_example": "Treating conversation history as free. Every prior turn sitting in context is a hidden token contributor paid for on every subsequent request."
+      },
+      {
+        "name": "Token Budget Mental Model",
+        "summary": "The token budget mental model treats the model's context window as a fixed budget \u2014 not an unlimited space. Every token included is a deliberate allocation. Every unnecessary token is waste that crowds out useful information and inflates cost.",
+        "why_it_matters": "Engineers who think of context as 'the bigger the better' consistently overpay and get worse results. Engineers who think of context as a budget allocate tokens to the information that most improves the answer.",
+        "when_to_use": "When designing prompts, instruction files, and skill files. When reviewing any artifact that will be processed by a model repeatedly.",
+        "when_not_to_use": "Do not apply token budget thinking so aggressively that necessary context is removed. The goal is relevance, not minimalism.",
+        "example": "A test architecture review prompt allocates: 200 tokens for role/persona, 300 tokens for specific task context, 100 tokens for output format. Every other token is cut. Result: faster, cheaper, more focused responses.",
+        "non_example": "Treating a 128,000 token context window as permission to fill it. A large window is a safety net, not an invitation."
+      }
+    ],
+    "misconceptions": [
+      {
+        "misconception": "Tokens are just words",
+        "why_wrong": "Tokenization does not align with word boundaries. A single word can be multiple tokens; punctuation, spaces, and code symbols each consume tokens independently.",
+        "correct_view": "A token is a sub-word unit produced by a tokenizer. Word count is an unreliable proxy for token count \u2014 especially for code, punctuation, and non-English text.",
+        "typical_phrase": "'I counted the words in my prompt \u2014 it is only 200 words so it should be cheap.'",
+        "correction_strategy": "Ask: 'If tokens were just words, what would happen when the model processes a line of Python code with 10 symbols and no words?' Guide toward tokenizer mechanics."
+      },
+      {
+        "misconception": "More tokens always improve performance",
+        "why_wrong": "Attention is not uniform \u2014 the model does not benefit equally from all tokens. Past a threshold, additional tokens dilute relevance and cause the model to deweight important context.",
+        "correct_view": "Token quality matters more than token quantity. A well-curated 500-token prompt often outperforms a bloated 5,000-token prompt on the same task.",
+        "typical_phrase": "'I should give the model as much context as possible \u2014 more is always better.'",
+        "correction_strategy": "Ask: 'If more tokens always helped, why do long sessions often produce worse results than short, focused ones?' Probe the attention dilution concept."
+      },
+      {
+        "misconception": "Token limits only matter at the hard maximum",
+        "why_wrong": "Quality degradation and cost accumulation begin well before the hard context limit. In practice, performance and economics suffer long before the window is full.",
+        "correct_view": "Token management is relevant throughout the session, not just as an emergency measure when approaching the limit.",
+        "typical_phrase": "'We have a 128k context window \u2014 we do not need to worry about tokens until we get close to the limit.'",
+        "correction_strategy": "Ask: 'What happens to cost and latency if every request uses 50k tokens when 5k would suffice?' Guide toward the economic and quality argument."
+      },
+      {
+        "misconception": "Cache tokens are free",
+        "why_wrong": "Cache tokens reduce reprocessing cost but are not zero-cost. Cache hits save computation but the original caching incurs cost, and cache misses result in full reprocessing.",
+        "correct_view": "Prompt caching is a cost-reduction mechanism, not a cost-elimination mechanism. It requires correct prompt structure and has its own pricing model.",
+        "typical_phrase": "'We use prompt caching so tokens do not matter for our system prompt.'",
+        "correction_strategy": "Ask: 'What happens when the cache misses \u2014 does caching eliminate processing cost entirely?' Surface the conditional nature of caching."
+      },
+      {
+        "misconception": "Output tokens are less important than input tokens",
+        "why_wrong": "Output tokens are typically priced higher per token than input tokens at most API tiers. A verbose output is often more expensive than the prompt that generated it.",
+        "correct_view": "Both input and output tokens carry significant cost. Output verbosity is a major and often overlooked cost driver.",
+        "typical_phrase": "'The prompt is the main cost \u2014 the response is just what comes back.'",
+        "correction_strategy": "Ask: 'If a model generates a 3,000-token response to a 500-token prompt, which is likely more expensive?' Surface the pricing asymmetry."
+      }
+    ],
+    "socratic_bank": [
+      {
+        "type": "Discovery",
+        "prompt": "What happens to your prompt before the model generates a single word?",
+        "use_when": "Opening question to surface token processing awareness",
+        "expected_response": "Model reads and processes it / it costs something / it gets converted",
+        "if_correct": "Ask: 'What specifically gets converted, and what is each unit of that conversion called?'",
+        "if_partial": "Ask: 'Think about the journey from text to model output \u2014 what step happens first before any response appears?'",
+        "if_incorrect": "Ask: 'Imagine the model as a reader. What does it have to do with every character you send before it can reply?'"
+      },
+      {
+        "type": "Probe",
+        "prompt": "You pasted a 300-line file and a 10-word question. Which part do you think costs more to process?",
+        "use_when": "After learner identifies input tokens exist",
+        "expected_response": "The file / both / not sure",
+        "if_correct": "Ask: 'Now think about the response the model gives back \u2014 is that counted in the same way?'",
+        "if_partial": "Ask: 'What makes the file more expensive \u2014 is it the number of characters, the number of words, or something else?'",
+        "if_incorrect": "Ask: 'If you had to pay for every unit the model reads, which of these two inputs would your bill be higher for?'"
+      },
+      {
+        "type": "Probe",
+        "prompt": "If tokens were just words, what would happen when the model processes a Python function?",
+        "use_when": "After learner understands tokens are text units",
+        "expected_response": "Code has symbols that are not words / it would undercount / not sure",
+        "if_correct": "Ask: 'So what does that tell you about using word count as your token estimate?'",
+        "if_partial": "Ask: 'Think about a line like def calculate_total(items): \u2014 how many words is that, and how might the tokenizer treat each symbol?'",
+        "if_incorrect": "Ask: 'What is in a line of code besides words? How might each of those elements be counted?'"
+      },
+      {
+        "type": "Misconception Challenge",
+        "prompt": "You said more context always helps. What happens to a model when it receives 100,000 tokens of mixed-relevance content?",
+        "use_when": "When learner claims more context is always better",
+        "expected_response": "It might get confused / not all of it is equally useful / it attends to all of it",
+        "if_correct": "Ask: 'So what is the difference between more context and better context?'",
+        "if_partial": "Ask: 'If the model attends to everything equally, what happens to the one relevant paragraph buried in 100k tokens?'",
+        "if_incorrect": "Ask: 'Think about reading a 500-page book to answer one specific question \u2014 is more pages always more helpful?'"
+      },
+      {
+        "type": "Recovery",
+        "prompt": "Let us take a step back. Tell me what you think the difference is between what you type and what the model processes.",
+        "use_when": "When learner is confused about token basics \u2014 recovery question",
+        "expected_response": "Some awareness that conversion happens",
+        "if_correct": "Ask: 'Good \u2014 what do you think that conversion step is called?'",
+        "if_partial": "Ask: 'When you type a message, the model does not see letters \u2014 it sees something else. What might that be?'",
+        "if_incorrect": "Ask: 'Think about how a computer represents text internally. What do you know about that?'"
+      }
+    ],
+    "practice_bank": [
+      {
+        "type": "Scenario",
+        "difficulty": "Foundation",
+        "title": "M1 Scenario Foundation Practice",
+        "context": "Realistic engineering scenario for M1 requiring a scenario response at foundation difficulty.",
+        "prompt_to_learner": "Complete this scenario task for M1. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Scenario",
+        "difficulty": "Intermediate",
+        "title": "M1 Scenario Intermediate Practice",
+        "context": "Realistic engineering scenario for M1 requiring a scenario response at intermediate difficulty.",
+        "prompt_to_learner": "Complete this scenario task for M1. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Scenario",
+        "difficulty": "Advanced",
+        "title": "M1 Scenario Advanced Practice",
+        "context": "Realistic engineering scenario for M1 requiring a scenario response at advanced difficulty.",
+        "prompt_to_learner": "Complete this scenario task for M1. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Classify",
+        "difficulty": "Foundation",
+        "title": "M1 Classify Foundation Practice",
+        "context": "Realistic engineering scenario for M1 requiring a classify response at foundation difficulty.",
+        "prompt_to_learner": "Complete this classify task for M1. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Classify",
+        "difficulty": "Intermediate",
+        "title": "M1 Classify Intermediate Practice",
+        "context": "Realistic engineering scenario for M1 requiring a classify response at intermediate difficulty.",
+        "prompt_to_learner": "Complete this classify task for M1. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Classify",
+        "difficulty": "Advanced",
+        "title": "M1 Classify Advanced Practice",
+        "context": "Realistic engineering scenario for M1 requiring a classify response at advanced difficulty.",
+        "prompt_to_learner": "Complete this classify task for M1. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      }
+    ]
+  },
+  "M2": {
+    "id": "M2",
+    "name": "The Evolution from Prompting to Context Engineering",
+    "learning_objective": "Explain why prompt engineering fails at scale and distinguish prompting from context engineering in multi-turn, tool-assisted systems.",
+    "core_mental_model": "Prompting is a local optimization; context engineering is whole-system control of information visibility and timing.",
+    "in_scope": "Prompt vs context distinction, lifecycle, accumulation, drift, system-thinking transition.",
+    "out_of_scope": "MCP mechanics, deep tool orchestration, memory architecture, advanced optimization, Copilot Studio configuration details.",
+    "one_next_step_template": "Your next step is: list every context element that influenced one multi-turn engineering interaction beyond the initial prompt.",
+    "concepts": [
+      {
+        "name": "Prompt Engineering",
+        "summary": "Prompt engineering is the practice of crafting, tuning, and iterating on a single prompt to improve the model's response to a specific query. It is local optimisation \u2014 focused on what is said in one request at one moment.",
+        "why_it_matters": "Prompt engineering is a valuable starting skill, but it does not scale to multi-turn, tool-assisted, or stateful workflows. Understanding its limits is the first step toward context engineering.",
+        "when_to_use": "When handling one-shot or single-turn tasks. When the task is well-defined, self-contained, and does not depend on prior state.",
+        "when_not_to_use": "Do not rely on prompt engineering alone for multi-turn workflows, agentic systems, or tasks where history and tool outputs accumulate across turns.",
+        "example": "Writing a prompt that asks a model to 'review this function for security vulnerabilities, output findings as a bullet list, cite line numbers' \u2014 that is prompt engineering. It works well for a single, self-contained request.",
+        "non_example": "Treating every interaction as a prompt engineering problem. When a workflow involves five turns, tool calls, and accumulated history, the prompt is only one element \u2014 not the system."
+      },
+      {
+        "name": "Context Engineering",
+        "summary": "Context engineering is the discipline of designing and managing everything the model sees across an entire interaction \u2014 system instructions, user messages, tool outputs, history, retrieved documents, and state \u2014 so that the right information is available at the right moment in the right amount.",
+        "why_it_matters": "As AI workflows move from one-shot prompts to multi-turn agents, the quality of the context design determines the quality of the outcome. A brilliant prompt in a broken context still fails.",
+        "when_to_use": "When designing multi-turn workflows, agents, or any system where more than one message is exchanged with the model.",
+        "when_not_to_use": "Context engineering does not replace prompt engineering \u2014 it includes it. Do not abandon prompt craft; extend it to the whole system.",
+        "example": "A code review agent is context-engineered to: load only the changed files (not the whole repo), carry the PR description as persistent context, retrieve the team's coding standards on demand, and reset tool output after each file review. Each of these is a context engineering decision.",
+        "non_example": "Thinking context engineering means writing a longer system prompt. Context engineering is about what is included, excluded, ordered, and timed \u2014 not about size."
+      },
+      {
+        "name": "Context State",
+        "summary": "Context state is the complete set of information currently available to the model at any point in an interaction \u2014 everything in its visible window. Context state includes the system prompt, all prior messages, any tool outputs, and any retrieved content loaded into the session.",
+        "why_it_matters": "Context state is dynamic \u2014 it grows with every turn. Engineers who do not actively manage context state find that it drifts, accumulates waste, and eventually degrades the model's ability to stay on task.",
+        "when_to_use": "When auditing what the model actually sees at a given turn. When diagnosing why a multi-turn workflow is producing inconsistent or drifting responses.",
+        "when_not_to_use": "Do not confuse context state with the user's intent or the task description. Context state is what the model sees \u2014 not what the engineer meant.",
+        "example": "At turn 5 of a debugging session, the context state contains: the original system prompt, four prior user messages, four prior model responses, two tool outputs from earlier turns, and a retrieved error log. That is the full state the model reasons from.",
+        "non_example": "Assuming the model reasons only from the latest message. Every prior turn in the window is part of the state the model attends to."
+      },
+      {
+        "name": "Context Lifecycle",
+        "summary": "The context lifecycle describes how context state changes over the duration of an interaction: it starts with the system prompt, grows with each user turn and model response, expands further with tool outputs and retrieved content, and must be actively pruned or reset to avoid degradation.",
+        "why_it_matters": "Understanding the lifecycle prevents engineers from treating context as static. A prompt that works at turn 1 may fail at turn 10 because the lifecycle has filled the context with noise that drowns out the signal.",
+        "when_to_use": "When designing multi-turn workflows. When deciding where to prune, reset, or summarise context. When debugging why a long session produces worse results than a short one.",
+        "when_not_to_use": "Do not treat the context lifecycle as an automatic process. It requires deliberate design \u2014 what enters, when it enters, and when it leaves.",
+        "example": "Turn 1: system prompt + user task = clean context. Turn 3: + two model responses + one tool output. Turn 6: + further accumulation. Without pruning, the signal-to-noise ratio drops continuously across the lifecycle.",
+        "non_example": "Thinking of context as a fixed container that stays the same across turns. Context is a living, growing state that degrades if unmanaged."
+      },
+      {
+        "name": "Prompt Drift",
+        "summary": "Prompt drift occurs when accumulated context causes the model to gradually deviate from its original task instructions. Earlier constraints are diluted by subsequent messages, tool outputs, and clarifications until the model no longer consistently applies the original rules.",
+        "why_it_matters": "Prompt drift is one of the most common failure modes in long-running engineering workflows. It is invisible until the output is noticeably wrong \u2014 which may be many turns after the drift began.",
+        "when_to_use": "When reviewing multi-turn conversations for consistency. When a model that worked correctly at the start begins producing inconsistent or rule-violating outputs later in the session.",
+        "when_not_to_use": "Do not confuse prompt drift with model error. Drift is caused by context management failure, not model capability.",
+        "example": "An architecture review agent is instructed at turn 1 to always flag security risks. By turn 8, accumulated conversation about performance and code style has pushed the security instruction deep into the context. The model stops flagging security risks \u2014 not because it forgot, but because security is now a small signal in a noisy context.",
+        "non_example": "Assuming the model will always follow turn-1 instructions regardless of what accumulates later. Models attend to the full context \u2014 earlier instructions can be overwhelmed by later content."
+      }
+    ],
+    "misconceptions": [
+      {
+        "misconception": "A good enough prompt scales to any workflow",
+        "why_wrong": "Prompt quality is one input to a multi-turn system. At scale, conversation history, tool outputs, clarifications, and accumulated state interact in ways no single prompt can control.",
+        "correct_view": "Prompting is local optimisation. Context engineering is system-level design. They are not substitutes \u2014 one operates at the level of a message, the other at the level of the whole workflow.",
+        "typical_phrase": "'If I just write a really good system prompt, everything else will work.'",
+        "correction_strategy": "Ask: 'What changes between turn 1 and turn 8 of a conversation, even if the system prompt stays the same?' Guide toward context accumulation."
+      },
+      {
+        "misconception": "Context is just a bigger prompt",
+        "why_wrong": "Context includes history, tool outputs, retrieved documents, and dynamic state \u2014 elements that do not exist in a static prompt. Managing context requires different skills than writing prompts.",
+        "correct_view": "Context is a living, changing system. A prompt is a static artifact. Context engineering manages the whole system across time.",
+        "typical_phrase": "'Context engineering is just prompt engineering with a longer system prompt.'",
+        "correction_strategy": "Ask: 'What elements of a multi-turn interaction cannot be addressed by writing a better system prompt?' Surface history, tools, and state."
+      },
+      {
+        "misconception": "History always helps",
+        "why_wrong": "Past conversation history is only useful if it contains relevant, non-redundant information. Accumulated history often contains clarifications, retries, and tangents that dilute the current task's signal.",
+        "correct_view": "History is selectively useful. Relevant history helps; irrelevant history hurts. Context engineering decides which history to carry and which to prune.",
+        "typical_phrase": "'Keep the full conversation history \u2014 the model needs to remember everything.'",
+        "correction_strategy": "Ask: 'If a 10-turn conversation includes 3 turns about a now-resolved misunderstanding, does carrying those turns help or hurt the model on turn 11?'"
+      },
+      {
+        "misconception": "Repeating instructions equals context engineering",
+        "why_wrong": "Restating the same instruction every turn is a symptom of poor context engineering \u2014 it adds token cost without fixing the underlying issue of instruction drift. Context engineering addresses why instructions drift, not by repeating them.",
+        "correct_view": "Context engineering manages the conditions that cause drift \u2014 including what accumulates in the context \u2014 rather than compensating for drift by repetition.",
+        "typical_phrase": "'I just restate the key rules at the start of every message to make sure the model follows them.'",
+        "correction_strategy": "Ask: 'What is the token cost of restating 500 words of instructions on every turn across 100 engineers? And does restatement prevent drift or just paper over it?'"
+      },
+      {
+        "misconception": "Prompt drift is a model bug",
+        "why_wrong": "Prompt drift is caused by context accumulation diluting earlier instructions \u2014 it is a context management failure, not a model defect. The model is attending to everything in context; the problem is that the signal is being overwhelmed by noise.",
+        "correct_view": "Prompt drift is an engineering problem with an engineering solution: prune irrelevant history, reinforce critical constraints structurally, and design context so core instructions remain prominent.",
+        "typical_phrase": "'The model keeps forgetting my instructions \u2014 it must be a reliability issue with the model.'",
+        "correction_strategy": "Ask: 'If you cleared the conversation history and started fresh, would the model follow the instructions again?' If yes, the issue is context accumulation, not model reliability."
+      }
+    ],
+    "socratic_bank": [
+      {
+        "type": "Discovery",
+        "prompt": "A prompt works perfectly at turn 1. By turn 8 it stops following your instructions. What changed?",
+        "use_when": "Opening question to surface context accumulation awareness",
+        "expected_response": "Something accumulated / the conversation got long / not sure",
+        "if_correct": "Ask: 'What specifically accumulated \u2014 what is sitting in the context at turn 8 that was not there at turn 1?'",
+        "if_partial": "Ask: 'If the instructions are the same, what else might be influencing the model at turn 8?'",
+        "if_incorrect": "Ask: 'Is the model at turn 8 seeing only the latest message, or everything since turn 1?'"
+      },
+      {
+        "type": "Probe",
+        "prompt": "What elements are in the model's context at turn 5 that were not there at turn 1?",
+        "use_when": "After learner understands something accumulates",
+        "expected_response": "Prior messages / responses / tool outputs",
+        "if_correct": "Ask: 'And how does the model treat all of those elements \u2014 does it focus on the latest message or attend to everything?'",
+        "if_partial": "Ask: 'Think about what happens after each turn \u2014 what new content enters the context?'",
+        "if_incorrect": "Ask: 'What did the model generate in response to turns 1 through 4? Where does that go?'"
+      },
+      {
+        "type": "Misconception Challenge",
+        "prompt": "You said you would write a better prompt to fix the drift. Would a better prompt change what accumulates in context after 8 turns?",
+        "use_when": "When learner defaults to prompt rewriting as the fix",
+        "expected_response": "No / maybe not / it depends",
+        "if_correct": "Ask: 'So what would actually need to change to prevent instructions from drifting after 8 turns?'",
+        "if_partial": "Ask: 'The prompt is turn 1's contribution to context. What is contributing to context at turns 2 through 8?'",
+        "if_incorrect": "Ask: 'If the problem is caused by accumulation, is the solution to change what you put in \u2014 or to manage what accumulates?'"
+      },
+      {
+        "type": "Probe",
+        "prompt": "What is the difference between what you said in the prompt and what the model sees when generating the turn 8 response?",
+        "use_when": "To surface the difference between prompt and context state",
+        "expected_response": "The model sees more than just the prompt / it sees the full history",
+        "if_correct": "Ask: 'So when we talk about controlling what the model responds to, are we controlling the prompt or something larger?'",
+        "if_partial": "Ask: 'At turn 8, is the model reading only your latest message?'",
+        "if_incorrect": "Ask: 'What would you see if you could look at the model's full input at turn 8?'"
+      },
+      {
+        "type": "Recovery",
+        "prompt": "Let us simplify. Imagine you are having a conversation and all previous messages are read aloud before each reply. How does that change what influences the response?",
+        "use_when": "Recovery when learner cannot grasp context accumulation",
+        "expected_response": "Earlier messages influence the response / everything said matters",
+        "if_correct": "Ask: 'Now apply that to the model \u2014 does it work the same way?'",
+        "if_partial": "Ask: 'What happens to the influence of your original instructions as more messages are read aloud?'",
+        "if_incorrect": "Confirm the analogy is landing and then ask: 'So the model at turn 8 is influenced by how many prior messages?'"
+      }
+    ],
+    "practice_bank": [
+      {
+        "type": "Scenario",
+        "difficulty": "Foundation",
+        "title": "M2 Scenario Foundation Practice",
+        "context": "Realistic engineering scenario for M2 requiring a scenario response at foundation difficulty.",
+        "prompt_to_learner": "Complete this scenario task for M2. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Scenario",
+        "difficulty": "Intermediate",
+        "title": "M2 Scenario Intermediate Practice",
+        "context": "Realistic engineering scenario for M2 requiring a scenario response at intermediate difficulty.",
+        "prompt_to_learner": "Complete this scenario task for M2. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Scenario",
+        "difficulty": "Advanced",
+        "title": "M2 Scenario Advanced Practice",
+        "context": "Realistic engineering scenario for M2 requiring a scenario response at advanced difficulty.",
+        "prompt_to_learner": "Complete this scenario task for M2. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Classify",
+        "difficulty": "Foundation",
+        "title": "M2 Classify Foundation Practice",
+        "context": "Realistic engineering scenario for M2 requiring a classify response at foundation difficulty.",
+        "prompt_to_learner": "Complete this classify task for M2. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Classify",
+        "difficulty": "Intermediate",
+        "title": "M2 Classify Intermediate Practice",
+        "context": "Realistic engineering scenario for M2 requiring a classify response at intermediate difficulty.",
+        "prompt_to_learner": "Complete this classify task for M2. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Classify",
+        "difficulty": "Advanced",
+        "title": "M2 Classify Advanced Practice",
+        "context": "Realistic engineering scenario for M2 requiring a classify response at advanced difficulty.",
+        "prompt_to_learner": "Complete this classify task for M2. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      }
+    ]
+  },
+  "M3": {
+    "id": "M3",
+    "name": "Context Engineering \u2014 What It Is and How It Works",
+    "learning_objective": "Analyze context composition using the three-bloat model and explain how context design choices affect token cost and answer quality.",
+    "core_mental_model": "Context is an actively curated working state; quality depends on what is excluded as much as what is included.",
+    "in_scope": "Three-bloat model; context architecture; symptom-to-cause reasoning.",
+    "out_of_scope": "Deep MCP implementation, graph memory, runtime orchestration.",
+    "one_next_step_template": "Your next step is: classify one saturated session into input, output, and session bloat and name one thing to remove.",
+    "concepts": [
+      {
+        "name": "Input Bloat",
+        "summary": "Input bloat is unnecessary content loaded into the context before the model generates a response. It includes overly long system prompts, pasted files that are larger than needed, repeated instructions, and retrieved documents that are not relevant to the current task.",
+        "why_it_matters": "Input bloat inflates cost before a single output token is generated. It also dilutes the signal \u2014 useful content competes with noise for the model's attention.",
+        "when_to_use": "When reviewing system prompts, skill files, and instruction files. When deciding whether to paste a full file or a relevant excerpt.",
+        "when_not_to_use": "Do not confuse input bloat with having a long prompt. A long prompt with only relevant content is not bloat. Bloat is unnecessary length.",
+        "example": "An instruction file includes the full company onboarding documentation, three versions of the coding standards, and a FAQ section that is never relevant to the agent's task. All of it loads on every request \u2014 that is input bloat.",
+        "non_example": "Thinking every word in the system prompt is necessary because 'more context is always better'. Context engineering is about curation, not maximalism."
+      },
+      {
+        "name": "Output Bloat",
+        "summary": "Output bloat is low-value verbosity in the model's generated response: preambles ('Great question! Let me explain...'), restated context, ceremonial summaries, excessive caveats, and padding that adds length without adding information.",
+        "why_it_matters": "Output bloat wastes money on output tokens, increases latency, and buries the useful content in noise. In agentic systems, bloated output also becomes the next turn's input \u2014 compounding the cost.",
+        "when_to_use": "When reviewing model responses for unnecessary length. When setting output constraints in skill files and instruction files. When diagnosing why responses feel slow or hard to parse.",
+        "when_not_to_use": "Do not remove useful explanation to eliminate output bloat. The goal is removing padding, not removing substance.",
+        "example": "A model asked 'which test failed?' responds with: 'That is a great question. Let me walk you through my analysis of your test suite. Based on a thorough review of the output you provided, I can confirm that...' before eventually naming the failing test. The preamble is output bloat.",
+        "non_example": "Treating a longer answer as a better answer. In engineering workflows, precision and brevity are quality signals."
+      },
+      {
+        "name": "Session Bloat",
+        "summary": "Session bloat is the accumulation of context across conversation turns that is no longer needed but continues to be carried: prior model responses, earlier tool outputs, superseded clarifications, and redundant retry attempts.",
+        "why_it_matters": "Session bloat grows invisibly. Unlike input or output bloat, it is not visible in any single message \u2014 it accumulates across turns. By turn 10, a session can be carrying thousands of tokens of stale content that dilutes relevance and drives up cost.",
+        "when_to_use": "When auditing multi-turn sessions for accumulated waste. When deciding whether to prune history, summarise prior turns, or reset context.",
+        "when_not_to_use": "Do not remove session content that is still actively relevant. Not all session history is bloat \u2014 only the content that no longer contributes to the current task.",
+        "example": "A 12-turn debugging session carries: 6 prior model responses (many now irrelevant), 4 tool outputs from earlier steps (already acted on), and 3 restatements of the same error message. None of this is needed for the current turn \u2014 it is session bloat.",
+        "non_example": "Treating conversation history as sacred. History is useful until it is not \u2014 and session bloat is what happens when no one prunes it."
+      },
+      {
+        "name": "Always-Load Architecture",
+        "summary": "Always-load refers to content that should be present in every request because it is universally needed: core role definition, safety constraints, and the fundamental task framing. Always-load content is the stable backbone of the context.",
+        "why_it_matters": "Identifying what truly belongs in always-load prevents two failure modes: loading too much (bloat) and loading too little (the model lacks critical context). Always-load should be the minimum necessary for consistent behaviour.",
+        "when_to_use": "When designing system prompts and instruction files. When deciding which guidelines, rules, or context elements should be permanent versus conditional.",
+        "when_not_to_use": "Do not default to always-load for everything. Most content is better served by on-demand or never-load approaches.",
+        "example": "A code review agent always loads: its role definition (500 tokens), the team's non-negotiable security rules (200 tokens), and the output format spec (100 tokens). Total: 800 tokens. Everything else is loaded on demand.",
+        "non_example": "Pasting the entire coding standards document into every request because 'the model might need it'. If a rule is only relevant for specific file types, it belongs in on-demand, not always-load."
+      },
+      {
+        "name": "On-Demand Architecture",
+        "summary": "On-demand refers to content that is retrieved and loaded only when the current task requires it: specific file contents, reference documents, tool results for the active step, and context that is conditionally relevant.",
+        "why_it_matters": "On-demand loading is the primary mechanism for keeping context lean across varied tasks. Instead of loading everything that might be relevant, the system loads only what the current task needs.",
+        "when_to_use": "When designing agents that handle varied tasks. When deciding whether to include a document in the static context or retrieve it conditionally. When using RAG or tool-based retrieval.",
+        "when_not_to_use": "On-demand loading requires the ability to detect what is needed and retrieve it at the right time. It does not work without a retrieval mechanism.",
+        "example": "A documentation agent retrieves only the specific API reference pages relevant to the engineer's current question, rather than loading the full API documentation on every request.",
+        "non_example": "Fetching everything on first load 'just in case'. On-demand architecture requires the discipline to not pre-load speculatively."
+      }
+    ],
+    "misconceptions": [
+      {
+        "misconception": "All bloat is the same problem",
+        "why_wrong": "Input, output, and session bloat have different causes, different symptoms, and different fixes. Treating them as one problem leads to fixes that address the wrong type.",
+        "correct_view": "The three bloat types are distinct. Input bloat is about what goes in before generation. Output bloat is about what the model generates. Session bloat is about what accumulates across turns.",
+        "typical_phrase": "'I have a token problem \u2014 I just need to reduce the amount of text.'",
+        "correction_strategy": "Ask: 'If you shortened the prompt but the session history kept growing, would the problem be solved?' Force separation of the three types."
+      },
+      {
+        "misconception": "Bigger context windows eliminate curation needs",
+        "why_wrong": "Larger context windows increase capacity but do not improve attention quality. A model with a 200k token window still attends non-uniformly \u2014 content buried in a large context receives less reliable attention than content in a focused context.",
+        "correct_view": "Context curation is necessary regardless of window size. The purpose of curation is not to avoid hitting the limit \u2014 it is to ensure the model attends to the right things.",
+        "typical_phrase": "'We moved to a 200k token model \u2014 we do not need to worry about context design anymore.'",
+        "correction_strategy": "Ask: 'If you put a single relevant sentence in 200k tokens of noise, would the model reliably find it?' Surface the attention quality argument."
+      },
+      {
+        "misconception": "Verbose output is harmless",
+        "why_wrong": "In agentic systems, output becomes input for the next step. A verbose 2,000-token response that could have been 200 tokens will add 1,800 tokens of unnecessary input cost to every subsequent turn that carries it.",
+        "correct_view": "Output verbosity compounds in multi-turn systems. It is a cost at the turn it occurs and a bloat driver for all subsequent turns.",
+        "typical_phrase": "'The model is just being thorough \u2014 long answers are fine, we are not paying by the word.'",
+        "correction_strategy": "Ask: 'In an agent pipeline where the response of step 3 becomes part of the context for step 4, what is the true cost of a response that is 10x longer than needed?'"
+      }
+    ],
+    "socratic_bank": [
+      {
+        "type": "Discovery",
+        "prompt": "This session is slow and the outputs are drifting. Before we fix anything \u2014 what do you want to understand first?",
+        "use_when": "Opening diagnostic question for Module 3",
+        "expected_response": "Where the tokens are going / what is causing the problem / what type of bloat it is",
+        "if_correct": "Ask: 'Good \u2014 so what would you look at to understand where the tokens are going?'",
+        "if_partial": "Ask: 'What information would help you decide which part of the session to fix?'",
+        "if_incorrect": "Ask: 'Think about the three stages of a session \u2014 before generation, during generation, and across turns. Which one would you check first?'"
+      },
+      {
+        "type": "Probe",
+        "prompt": "Which part of this session existed before the model generated a single word?",
+        "use_when": "To separate input from output and session bloat",
+        "expected_response": "The system prompt / the user messages / the pasted files",
+        "if_correct": "Ask: 'Good \u2014 and what do we call it when there is more of that than needed?'",
+        "if_partial": "Ask: 'Think about everything that was in the context window before generation began \u2014 what is that category?'",
+        "if_incorrect": "Ask: 'The model reads something before it writes something. What did it read in this session?'"
+      },
+      {
+        "type": "Probe",
+        "prompt": "A coding assistant carries the full conversation history across 15 turns. Which bloat type is accumulating?",
+        "use_when": "To test classification of session bloat specifically",
+        "expected_response": "Session bloat",
+        "if_correct": "Ask: 'What would happen to the input token count at turn 15 compared to turn 1 if full history is always carried?'",
+        "if_partial": "Ask: 'Is the accumulation happening before generation, during generation, or across turns over time?'",
+        "if_incorrect": "Ask: 'Think about when this content enters the context \u2014 is it there from the start, created by the model, or built up over multiple exchanges?'"
+      },
+      {
+        "type": "Misconception Challenge",
+        "prompt": "You said the context window is large so curation is not needed. What happens to the model's attention when 100k of a 128k window is filled with low-relevance content?",
+        "use_when": "When learner invokes large context window as excuse not to curate",
+        "expected_response": "Attention is diluted / the relevant content gets lost / not sure",
+        "if_correct": "Ask: 'So what is the purpose of context curation \u2014 is it about avoiding the limit or about something else?'",
+        "if_partial": "Ask: 'If the model attends non-uniformly, what happens to a 200-token relevant section buried in 90k tokens of background?'",
+        "if_incorrect": "Ask: 'Is a 128k token window permission to fill it, or a safety net for exceptional cases?'"
+      },
+      {
+        "type": "Recovery",
+        "prompt": "Let us sort the session artifacts into three bins: what was there before the model started, what the model created, and what built up across turns. Which bin is biggest?",
+        "use_when": "Recovery when learner cannot classify bloat types",
+        "expected_response": "Some awareness of the three categories",
+        "if_correct": "Ask: 'What do we call waste in each of those three bins?'",
+        "if_partial": "Help learner name the bins (input, output, session) and then ask: 'In this specific session, which bin is contributing the most tokens?'",
+        "if_incorrect": "Walk through one artifact together: 'Where does the pasted file go \u2014 which bin? Where does the model response go? Where does the prior conversation go?'"
+      }
+    ],
+    "practice_bank": [
+      {
+        "type": "Diagnose",
+        "difficulty": "Foundation",
+        "title": "M3 Diagnose Foundation Practice",
+        "context": "Realistic engineering scenario for M3 requiring a diagnose response at foundation difficulty.",
+        "prompt_to_learner": "Complete this diagnose task for M3. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Diagnose",
+        "difficulty": "Intermediate",
+        "title": "M3 Diagnose Intermediate Practice",
+        "context": "Realistic engineering scenario for M3 requiring a diagnose response at intermediate difficulty.",
+        "prompt_to_learner": "Complete this diagnose task for M3. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Diagnose",
+        "difficulty": "Advanced",
+        "title": "M3 Diagnose Advanced Practice",
+        "context": "Realistic engineering scenario for M3 requiring a diagnose response at advanced difficulty.",
+        "prompt_to_learner": "Complete this diagnose task for M3. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Classify",
+        "difficulty": "Foundation",
+        "title": "M3 Classify Foundation Practice",
+        "context": "Realistic engineering scenario for M3 requiring a classify response at foundation difficulty.",
+        "prompt_to_learner": "Complete this classify task for M3. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Classify",
+        "difficulty": "Intermediate",
+        "title": "M3 Classify Intermediate Practice",
+        "context": "Realistic engineering scenario for M3 requiring a classify response at intermediate difficulty.",
+        "prompt_to_learner": "Complete this classify task for M3. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Classify",
+        "difficulty": "Advanced",
+        "title": "M3 Classify Advanced Practice",
+        "context": "Realistic engineering scenario for M3 requiring a classify response at advanced difficulty.",
+        "prompt_to_learner": "Complete this classify task for M3. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Design",
+        "difficulty": "Foundation",
+        "title": "M3 Design Foundation Practice",
+        "context": "Realistic engineering scenario for M3 requiring a design response at foundation difficulty.",
+        "prompt_to_learner": "Complete this design task for M3. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Design",
+        "difficulty": "Intermediate",
+        "title": "M3 Design Intermediate Practice",
+        "context": "Realistic engineering scenario for M3 requiring a design response at intermediate difficulty.",
+        "prompt_to_learner": "Complete this design task for M3. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Design",
+        "difficulty": "Advanced",
+        "title": "M3 Design Advanced Practice",
+        "context": "Realistic engineering scenario for M3 requiring a design response at advanced difficulty.",
+        "prompt_to_learner": "Complete this design task for M3. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      }
+    ]
+  },
+  "M4": {
+    "id": "M4",
+    "name": "Diagnosing Token Cost",
+    "learning_objective": "Interpret debug console outputs or token breakdowns, identify dominant waste patterns, and recommend the highest-ROI fix with defensible reasoning.",
+    "core_mental_model": "You cannot optimize what you have not correctly diagnosed.",
+    "in_scope": "Token traces, cause-vs-symptom logic, one-fix prioritization.",
+    "out_of_scope": "Broader optimization frameworks, memory redesign, full agent architecture.",
+    "one_next_step_template": "Your next step is: name the dominant bloat, likely cause, and one highest-ROI fix\u2014nothing more.",
+    "concepts": [
+      {
+        "name": "Dominant Bloat Pattern",
+        "summary": "The dominant bloat pattern is the single largest source of waste in a specific session \u2014 the bloat type (input, output, or session) that is contributing most to excess tokens, cost, or latency degradation. Correct identification of the dominant pattern is the prerequisite for effective optimisation.",
+        "why_it_matters": "Fixing the wrong bloat type produces minimal improvement. Engineers who optimise output verbosity when session accumulation is the dominant issue will see little change \u2014 because they fixed the secondary problem.",
+        "when_to_use": "When beginning any token optimisation task. Always identify dominant bloat before recommending a fix.",
+        "when_not_to_use": "Do not assume the most visible problem is the dominant one. The largest visible artifact is often not the largest token consumer.",
+        "example": "A debug session shows: input tokens 800, output tokens 1,200, but session history has grown to 6,000 tokens across 10 turns. The dominant bloat is session bloat \u2014 not output verbosity, even though the output looks long.",
+        "non_example": "Jumping to output trimming as the default fix for every token problem. Output is often the most visible contributor but rarely the dominant one in mature multi-turn sessions."
+      },
+      {
+        "name": "Evidence-First Diagnosis",
+        "summary": "Evidence-first diagnosis is the discipline of reading token counts, trends, and trace data before forming a hypothesis about waste. It prevents engineers from treating the most emotionally obvious symptom as the root cause.",
+        "why_it_matters": "Without evidence-first reasoning, optimisation is guesswork. Engineers fix what bothers them aesthetically (verbose output, long prompts) rather than what the data shows is costing the most.",
+        "when_to_use": "At the start of every token diagnosis task. Before recommending any optimisation fix.",
+        "when_not_to_use": "Do not skip evidence review because the problem 'looks obvious'. The obvious problem is often a symptom of a less visible cause.",
+        "example": "An engineer sees a verbose model response and immediately wants to add output length constraints. Evidence-first diagnosis reveals that the output is 800 tokens but the session history is 12,000 tokens \u2014 the right fix is session pruning, not output trimming.",
+        "non_example": "Starting with a fix before reading the token breakdown. Diagnosis must precede prescription."
+      },
+      {
+        "name": "Highest-ROI Fix",
+        "summary": "The highest-ROI fix is the single change most likely to reduce waste materially without harming answer quality or relevance. It is chosen based on evidence \u2014 not intuition, preference, or ease of implementation.",
+        "why_it_matters": "In any optimisation scenario, multiple fixes are possible. Choosing the highest-ROI fix means the engineer gets the maximum benefit from one intervention, rather than making several low-value changes that collectively do less.",
+        "when_to_use": "When a diagnosis is complete and a fix must be recommended. Always choose one fix and justify it over alternatives.",
+        "when_not_to_use": "Do not recommend a list of fixes. The discipline of Module 4 is prioritisation \u2014 one fix, one reason, one expected outcome.",
+        "example": "Session bloat is the dominant pattern (8,000 tokens of history). Highest-ROI fix: summarise prior turns after every 3 exchanges, reducing session tokens by ~70%. Alternative fixes (trim output, shorten system prompt) would each save <200 tokens \u2014 far lower ROI.",
+        "non_example": "Recommending five changes simultaneously. A fix list signals diagnosis failure \u2014 the engineer has not prioritised."
+      },
+      {
+        "name": "Root Cause vs Symptom",
+        "summary": "The root cause of token waste is the operational pattern that generates the waste. The symptom is the visible manifestation \u2014 high token count, slow response, drifting output. Confusing symptom for cause leads to fixes that do not hold.",
+        "why_it_matters": "Treating symptoms produces temporary improvements. An engineer who trims a verbose response has addressed the symptom. The engineer who identifies that verbose output is caused by an absence of output format constraints in the skill file has addressed the root cause.",
+        "when_to_use": "When explaining a diagnosis. Always name both the symptom and the cause separately.",
+        "when_not_to_use": "Do not stop at naming the symptom. The symptom is the starting point, not the destination.",
+        "example": "Symptom: model response is 2,000 tokens when 200 would suffice. Root cause: the skill file has no output format constraint and no brevity instruction \u2014 the model defaults to maximum elaboration.",
+        "non_example": "Writing 'the output is too long' as a diagnosis. That is the symptom. The cause is an instruction architecture gap."
+      },
+      {
+        "name": "Token Trend Reading",
+        "summary": "Token trend reading is the practice of looking at how token counts change across turns in a session \u2014 not just the total at one moment. Rising input tokens across turns indicate session accumulation. Stable input with rising output suggests verbosity drift. Spikes indicate large tool payload injection.",
+        "why_it_matters": "A single snapshot of token counts can be misleading. Trends reveal whether a problem is growing (accumulation), fixed (one-time overload), or intermittent (triggered by specific actions). Trend reading enables targeted fixes.",
+        "when_to_use": "When reviewing multi-turn debug logs or token analytics. When diagnosing a problem that appears to worsen over time rather than being present from the start.",
+        "when_not_to_use": "Do not read only the latest turn's token count. The trend across turns often tells a different story than any single measurement.",
+        "example": "Turn 1: 1,200 input tokens. Turn 3: 2,800. Turn 5: 4,900. Turn 7: 7,200. The rising trend confirms session accumulation \u2014 each turn carries all prior content. The fix is history pruning, not prompt shortening.",
+        "non_example": "Looking only at the most recent request's token count and concluding the prompt is too long. The latest prompt might be short \u2014 the history is what is growing."
+      }
+    ],
+    "misconceptions": [
+      {
+        "misconception": "The most visible artifact is the biggest problem",
+        "why_wrong": "The most visible artifact \u2014 often a long pasted file or a verbose response \u2014 draws attention disproportionately. The dominant token consumer is often invisible: accumulated history, repeated tool outputs, or hidden retry context.",
+        "correct_view": "Evidence-first diagnosis reveals the actual dominant pattern. Visible salience is not the same as quantitative dominance.",
+        "typical_phrase": "'The problem is obvious \u2014 that pasted file is huge. Cut it down.'",
+        "correction_strategy": "Ask: 'Before we fix the pasted file, let us read the token breakdown. What does the session history contribute across all turns? Is the file actually the dominant cost?'"
+      },
+      {
+        "misconception": "More fixes are always better",
+        "why_wrong": "Multiple simultaneous fixes obscure which change actually worked and make it impossible to learn from the intervention. Module 4 trains prioritisation \u2014 one fix, one measurement, one learning.",
+        "correct_view": "The highest-ROI fix, applied alone, produces clearer learning and often more improvement than several lower-ROI fixes applied together.",
+        "typical_phrase": "'I will try trimming the output, shortening the prompt, and pruning the history all at once.'",
+        "correction_strategy": "Ask: 'If you make three changes simultaneously and the problem improves, how will you know which change was responsible? If it gets worse, which change caused it?'"
+      }
+    ],
+    "socratic_bank": [
+      {
+        "type": "Discovery",
+        "prompt": "Here is a token breakdown: input 900, output 1,100, session history growing by 800 tokens per turn across 10 turns. What do you notice first?",
+        "use_when": "Opening diagnostic question with numbers",
+        "expected_response": "The session history is the largest and growing / the total is high / not sure",
+        "if_correct": "Ask: 'What does a trend of +800 tokens per turn across 10 turns tell you about the dominant problem?'",
+        "if_partial": "Ask: 'Which of these three numbers would you expect to be highest by turn 20 if nothing changes?'",
+        "if_incorrect": "Ask: 'Before deciding what to fix, what does each number tell you about where the tokens are coming from?'"
+      },
+      {
+        "type": "Probe",
+        "prompt": "What is the difference between the visible symptom and the operational cause in this trace?",
+        "use_when": "After learner identifies a pattern",
+        "expected_response": "Symptom is the high token count / cause is what is generating it",
+        "if_correct": "Ask: 'Good \u2014 so if the symptom is rising tokens, what is the operational action that is causing the session history to grow?'",
+        "if_partial": "Ask: 'Can you name the symptom in one sentence and the cause in a separate sentence?'",
+        "if_incorrect": "Ask: 'What would have to stop happening for the session history to stop growing?'"
+      },
+      {
+        "type": "Probe",
+        "prompt": "You have identified session accumulation as the dominant pattern. Of the three things you could fix, which one would reduce tokens most per request?",
+        "use_when": "After dominant pattern is correctly identified",
+        "expected_response": "Pruning history / summarising prior turns / scoping retrieval",
+        "if_correct": "Ask: 'What is your expected outcome after that fix \u2014 what specifically should change in the numbers?'",
+        "if_partial": "Ask: 'Compare the three options: which one addresses the accumulation directly versus treating a symptom?'",
+        "if_incorrect": "Ask: 'If session history is 8,000 tokens per request and output is 600, where is the highest ROI?'"
+      },
+      {
+        "type": "Misconception Challenge",
+        "prompt": "You said you would fix the long response first. How much would that save if each response is 800 tokens but the session history is 9,000 tokens?",
+        "use_when": "When learner prioritises output trimming over session pruning",
+        "expected_response": "Not much / less than pruning history / it depends",
+        "if_correct": "Ask: 'So which fix produces the higher ROI on the evidence in front of you?'",
+        "if_partial": "Ask: 'If you could only make one change, which one addresses the largest token contributor?'",
+        "if_incorrect": "Ask: 'Output trimming might save 200 tokens per response. History pruning might save 6,000. Which is the highest-ROI fix?'"
+      },
+      {
+        "type": "Recovery",
+        "prompt": "Let us use three steps only: read the number, name the pattern, choose one fix. What does the evidence tell you in step one?",
+        "use_when": "Recovery when learner jumps to fixes without diagnosis",
+        "expected_response": "Some reading of the numbers",
+        "if_correct": "Walk through: 'Good. Step two: given that number, which bloat pattern does it suggest?' Then step three.",
+        "if_partial": "Ask: 'Before step two, just read what the numbers say \u2014 no interpretation yet. What are the numbers?'",
+        "if_incorrect": "Model the three steps explicitly with the learner, one step at a time, asking for their input at each stage."
+      }
+    ],
+    "practice_bank": [
+      {
+        "type": "Diagnose",
+        "difficulty": "Foundation",
+        "title": "M4 Diagnose Foundation Practice",
+        "context": "Realistic engineering scenario for M4 requiring a diagnose response at foundation difficulty.",
+        "prompt_to_learner": "Complete this diagnose task for M4. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Diagnose",
+        "difficulty": "Intermediate",
+        "title": "M4 Diagnose Intermediate Practice",
+        "context": "Realistic engineering scenario for M4 requiring a diagnose response at intermediate difficulty.",
+        "prompt_to_learner": "Complete this diagnose task for M4. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Diagnose",
+        "difficulty": "Advanced",
+        "title": "M4 Diagnose Advanced Practice",
+        "context": "Realistic engineering scenario for M4 requiring a diagnose response at advanced difficulty.",
+        "prompt_to_learner": "Complete this diagnose task for M4. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Estimate",
+        "difficulty": "Foundation",
+        "title": "M4 Estimate Foundation Practice",
+        "context": "Realistic engineering scenario for M4 requiring a estimate response at foundation difficulty.",
+        "prompt_to_learner": "Complete this estimate task for M4. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Estimate",
+        "difficulty": "Intermediate",
+        "title": "M4 Estimate Intermediate Practice",
+        "context": "Realistic engineering scenario for M4 requiring a estimate response at intermediate difficulty.",
+        "prompt_to_learner": "Complete this estimate task for M4. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Estimate",
+        "difficulty": "Advanced",
+        "title": "M4 Estimate Advanced Practice",
+        "context": "Realistic engineering scenario for M4 requiring a estimate response at advanced difficulty.",
+        "prompt_to_learner": "Complete this estimate task for M4. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Prioritize",
+        "difficulty": "Foundation",
+        "title": "M4 Prioritize Foundation Practice",
+        "context": "Realistic engineering scenario for M4 requiring a prioritize response at foundation difficulty.",
+        "prompt_to_learner": "Complete this prioritize task for M4. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Prioritize",
+        "difficulty": "Intermediate",
+        "title": "M4 Prioritize Intermediate Practice",
+        "context": "Realistic engineering scenario for M4 requiring a prioritize response at intermediate difficulty.",
+        "prompt_to_learner": "Complete this prioritize task for M4. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Prioritize",
+        "difficulty": "Advanced",
+        "title": "M4 Prioritize Advanced Practice",
+        "context": "Realistic engineering scenario for M4 requiring a prioritize response at advanced difficulty.",
+        "prompt_to_learner": "Complete this prioritize task for M4. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      }
+    ]
+  },
+  "M5": {
+    "id": "M5",
+    "name": "Instructions and Skills \u2014 Building the Two-File Architecture",
+    "learning_objective": "Design reusable instruction files and skills with clear triggers, workflow steps, output formats, and anti-pattern coverage.",
+    "core_mental_model": "What repeats becomes a system; reliable repeated behavior should not remain a one-off prompt.",
+    "in_scope": "Instruction/skill distinction, trigger precision, workflow, output discipline, anti-pattern awareness.",
+    "out_of_scope": "Full multi-agent orchestration, memory architecture, runtime MCP control.",
+    "one_next_step_template": "Your next step is: rewrite only the trigger condition and workflow so another engineer could reuse this without re-explaining the task.",
+    "concepts": [
+      {
+        "name": "Instruction File",
+        "summary": "An instruction file (sometimes called copilot-instructions.md or a system prompt document) is a persistent artifact containing broad, stable guidance that governs the model's general behaviour across many tasks: its role, tone, scope boundaries, what it should always and never do.",
+        "why_it_matters": "Without an instruction file, engineers restate broad guidance in every prompt \u2014 creating inconsistency and token waste. The instruction file makes stable behaviour reusable and maintainable.",
+        "when_to_use": "When defining persistent agent behaviour, role, scope, and boundaries that apply across all tasks the agent performs.",
+        "when_not_to_use": "Do not put task-specific logic, narrow triggers, or workflow steps in the instruction file. Those belong in skill files.",
+        "example": "A code review agent's instruction file states: role (senior code reviewer), tone (direct, constructive), scope (only review files in the PR, not the whole repo), and boundaries (do not suggest architectural changes unless asked). These rules apply to every task.",
+        "non_example": "Writing a separate long prompt for every code review request instead of defining the role and boundaries once in a persistent file."
+      },
+      {
+        "name": "Skill File",
+        "summary": "A skill file is a reusable, task-specific artifact that defines a repeatable behaviour: what triggers it, the workflow steps it follows, the output format it produces, and the anti-patterns it avoids. A skill file is narrower than an instruction file and activates under specific conditions.",
+        "why_it_matters": "Skill files turn repeated cognitive effort into system behaviour. Instead of writing the same prompt for code reviews, test generation, or documentation every time, the skill file encodes that behaviour once \u2014 consistently and reusably.",
+        "when_to_use": "When a task is repeated across the team, when the same steps and output format are expected each time, when consistency across engineers matters.",
+        "when_not_to_use": "Do not use a skill file for broad, always-on behaviour. A skill that 'always applies' is an instruction file, not a skill.",
+        "example": "A skill file for 'PR security review' defines: trigger (when a PR touches authentication or payment code), workflow (check for injection risks, then auth bypass, then data exposure), output format (findings table with severity and line number), anti-patterns (do not flag style issues, do not restate the PR description).",
+        "non_example": "Writing a skill file that says 'review code when asked'. That trigger is too vague to be reusable \u2014 it would activate for any code question."
+      },
+      {
+        "name": "Trigger Condition",
+        "summary": "A trigger condition is the observable, specific event or state that causes a skill to activate. A good trigger names an exact action, request type, or file state \u2014 not a vague category. It must be clear enough that another engineer reading it can predict when the skill will fire.",
+        "why_it_matters": "Vague triggers cause unreliable or unexpected activation. A trigger that says 'when needed for code' will fire too broadly or not at all \u2014 because no one can predict what counts as 'needed'.",
+        "when_to_use": "When writing or reviewing a skill file. The trigger is the most critical element \u2014 a skill with a weak trigger cannot be trusted.",
+        "when_not_to_use": "Do not write triggers that depend on mind-reading or context that is not in the request. The trigger must be observable from the request itself.",
+        "example": "Strong trigger: 'When the engineer runs /review on a pull request that modifies files in /auth or /payments.' Weak trigger: 'When reviewing code that might have security issues.'",
+        "non_example": "Writing 'activate when the user needs help' as a trigger. That is not observable \u2014 it relies on the model guessing intent."
+      },
+      {
+        "name": "Progressive Disclosure",
+        "summary": "Progressive disclosure in context engineering means keeping only the information the model needs for the current step in context, revealing additional detail only as the workflow progresses. It prevents context overload by loading information just-in-time rather than all-at-once.",
+        "why_it_matters": "Loading everything upfront fills the context with information the model will not use until step 5, while it is at step 1. Progressive disclosure keeps the context clean and relevant at every stage.",
+        "when_to_use": "When designing multi-step workflows. When a task has sequential phases where early phases do not need the data required by later phases.",
+        "when_not_to_use": "Do not apply progressive disclosure to always-load content like role and safety constraints. Those must be present from the start.",
+        "example": "A document review skill first loads only the document title and structure. After the engineer confirms the review scope, it loads the relevant sections. Only if legal language is found does it load the legal review checklist. Each piece loads progressively.",
+        "non_example": "Loading the full legal checklist, full document, and all review criteria at step 1 of a review that might not need legal review at all."
+      },
+      {
+        "name": "Anti-Pattern Coverage",
+        "summary": "Anti-pattern coverage in a skill file is the explicit list of what the model should NOT do when the skill activates: which outputs to avoid, which topics to exclude, which failure modes to guard against. Anti-patterns are as important as positive workflow steps.",
+        "why_it_matters": "Without anti-patterns, the model defaults to its broadest interpretation \u2014 which often includes the exact behaviours the team wants to prevent. Anti-patterns are the guardrails that keep a skill focused.",
+        "when_to_use": "When writing or reviewing any skill file. Every skill should have at least two relevant anti-patterns that reflect real failure modes.",
+        "when_not_to_use": "Do not write generic anti-patterns like 'do not be unhelpful'. Anti-patterns must be task-specific and tied to real failure modes observed in the workflow.",
+        "example": "A test generation skill's anti-patterns: 'Do not generate tests for already-covered cases unless asked. Do not include test data that contains real customer identifiers. Do not suggest changes to the function under test.'",
+        "non_example": "Leaving anti-patterns blank or writing 'do not make mistakes'. Generic anti-patterns provide no guardrails."
+      }
+    ],
+    "misconceptions": [
+      {
+        "misconception": "Skills are optional polish",
+        "why_wrong": "Skills are not decorative \u2014 they are the mechanism that converts repeated human effort into reliable, consistent system behaviour. Without skills, every engineer recreates the same prompt logic independently, with variation and drift.",
+        "correct_view": "Skill files are a core engineering practice for teams using AI assistants. They create consistency, reduce cognitive overhead, and enable reuse at scale.",
+        "typical_phrase": "'We could write skill files but our engineers know what to do \u2014 it is not worth the overhead.'",
+        "correction_strategy": "Ask: 'If 10 engineers each write their own version of a code review prompt, how consistent will the review outputs be across the team? What happens when they onboard 5 new engineers?'"
+      },
+      {
+        "misconception": "Longer instructions are always better",
+        "why_wrong": "Longer instruction files and skill files become their own source of input bloat. A 5,000-token instruction file that could be 800 tokens wastes cost on every request and is harder to maintain.",
+        "correct_view": "Instructions should be complete but minimal. Economy of instruction is a quality criterion \u2014 not laziness.",
+        "typical_phrase": "'I keep adding more detail to the instruction file to make the agent more reliable.'",
+        "correction_strategy": "Ask: 'If the instruction file grows to 10,000 tokens and is loaded on every request across 1,000 daily users, what is the monthly cost of the instruction file alone?'"
+      },
+      {
+        "misconception": "Vague triggers are acceptable",
+        "why_wrong": "Vague triggers produce unpredictable activation \u2014 the skill fires when it should not, or fails to fire when it should. This makes the system unreliable and the skill unusable for team-wide deployment.",
+        "correct_view": "Trigger conditions must be observable, specific, and testable. A trigger that another engineer cannot predict from reading it is not production-ready.",
+        "typical_phrase": "'My trigger says when code review is needed \u2014 that should be clear enough.'",
+        "correction_strategy": "Ask: 'Could another engineer reading this trigger tell you in advance exactly when it will activate and when it will not? If not, what observable condition should replace it?'"
+      }
+    ],
+    "socratic_bank": [
+      {
+        "type": "Discovery",
+        "prompt": "Your team writes a slightly different code review prompt every time. What problem does that create at scale?",
+        "use_when": "Opening question to surface the motivation for skill files",
+        "expected_response": "Inconsistency / duplication / different outputs / harder to maintain",
+        "if_correct": "Ask: 'What would it take to make that behaviour consistent across 50 engineers without asking each one to remember the rules?'",
+        "if_partial": "Ask: 'How does variation in the prompt affect the consistency of the review output?'",
+        "if_incorrect": "Ask: 'If you wanted every engineer to get the same quality of review, what would need to be standardised?'"
+      },
+      {
+        "type": "Probe",
+        "prompt": "Your skill trigger says 'when the engineer needs a code review'. What would another engineer need to know to predict when this skill activates?",
+        "use_when": "After learner writes a vague trigger",
+        "expected_response": "They would need to know what counts as needing a review / it is too vague",
+        "if_correct": "Ask: 'What observable condition \u2014 something visible in the request \u2014 should replace that?'",
+        "if_partial": "Ask: 'Can you rewrite the trigger using an action you can see in the request, not an intent you have to guess?'",
+        "if_incorrect": "Ask: 'What specific event, command, or file state would tell you with certainty that this skill should activate?'"
+      },
+      {
+        "type": "Probe",
+        "prompt": "Your skill has a trigger and a workflow. What happens when the model follows the workflow but produces the wrong format every time?",
+        "use_when": "When output format is missing from the skill",
+        "expected_response": "It defaults to its own format / the output is inconsistent",
+        "if_correct": "Ask: 'What is missing from the skill that would prevent that?'",
+        "if_partial": "Ask: 'Where in the skill file would you add that instruction?'",
+        "if_incorrect": "Ask: 'If you want the same output format every time this skill runs, where does that specification live?'"
+      },
+      {
+        "type": "Misconception Challenge",
+        "prompt": "You said you do not need a skill file because the engineers know what to do. What happens when you onboard 10 new engineers next month?",
+        "use_when": "When learner dismisses skill files as unnecessary overhead",
+        "expected_response": "They would have to learn the unwritten rules / inconsistency / knowledge in people not systems",
+        "if_correct": "Ask: 'What is the cost of that knowledge living in people rather than in a reusable system artifact?'",
+        "if_partial": "Ask: 'How does tribal knowledge scale across a team that doubles in size?'",
+        "if_incorrect": "Ask: 'If the senior engineer leaves, what happens to the prompting approach they have perfected over 6 months?'"
+      },
+      {
+        "type": "Recovery",
+        "prompt": "Let us build the skill one section at a time. What is the one task this skill should do \u2014 and only this task?",
+        "use_when": "Recovery when learner writes an unfocused or over-broad skill",
+        "expected_response": "A specific task name",
+        "if_correct": "Ask: 'Good. Now \u2014 what specific observable condition should make that task activate?'",
+        "if_partial": "Ask: 'Set aside everything else for a moment. If this skill does one thing perfectly, what is that one thing?'",
+        "if_incorrect": "Ask: 'Let us name the task first. Then we will talk about when it fires, what it does, and what it produces.'"
+      }
+    ],
+    "practice_bank": [
+      {
+        "type": "Build",
+        "difficulty": "Foundation",
+        "title": "M5 Build Foundation Practice",
+        "context": "Realistic engineering scenario for M5 requiring a build response at foundation difficulty.",
+        "prompt_to_learner": "Complete this build task for M5. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Build",
+        "difficulty": "Intermediate",
+        "title": "M5 Build Intermediate Practice",
+        "context": "Realistic engineering scenario for M5 requiring a build response at intermediate difficulty.",
+        "prompt_to_learner": "Complete this build task for M5. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Build",
+        "difficulty": "Advanced",
+        "title": "M5 Build Advanced Practice",
+        "context": "Realistic engineering scenario for M5 requiring a build response at advanced difficulty.",
+        "prompt_to_learner": "Complete this build task for M5. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Review",
+        "difficulty": "Foundation",
+        "title": "M5 Review Foundation Practice",
+        "context": "Realistic engineering scenario for M5 requiring a review response at foundation difficulty.",
+        "prompt_to_learner": "Complete this review task for M5. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Review",
+        "difficulty": "Intermediate",
+        "title": "M5 Review Intermediate Practice",
+        "context": "Realistic engineering scenario for M5 requiring a review response at intermediate difficulty.",
+        "prompt_to_learner": "Complete this review task for M5. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Review",
+        "difficulty": "Advanced",
+        "title": "M5 Review Advanced Practice",
+        "context": "Realistic engineering scenario for M5 requiring a review response at advanced difficulty.",
+        "prompt_to_learner": "Complete this review task for M5. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Critique",
+        "difficulty": "Foundation",
+        "title": "M5 Critique Foundation Practice",
+        "context": "Realistic engineering scenario for M5 requiring a critique response at foundation difficulty.",
+        "prompt_to_learner": "Complete this critique task for M5. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Critique",
+        "difficulty": "Intermediate",
+        "title": "M5 Critique Intermediate Practice",
+        "context": "Realistic engineering scenario for M5 requiring a critique response at intermediate difficulty.",
+        "prompt_to_learner": "Complete this critique task for M5. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Critique",
+        "difficulty": "Advanced",
+        "title": "M5 Critique Advanced Practice",
+        "context": "Realistic engineering scenario for M5 requiring a critique response at advanced difficulty.",
+        "prompt_to_learner": "Complete this critique task for M5. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      }
+    ]
+  },
+  "M6": {
+    "id": "M6",
+    "name": "Seven Patterns for Advanced Token Optimization",
+    "learning_objective": "Apply advanced optimization patterns to reduce tokens while preserving relevance and answer quality.",
+    "core_mental_model": "Optimization is selective relevance preservation, not reduction for its own sake.",
+    "in_scope": "Pattern selection, trade-off reasoning, preservation/removal logic.",
+    "out_of_scope": "Full memory architecture, production deployment configuration, broad governance frameworks.",
+    "one_next_step_template": "Your next step is: choose exactly one optimization pattern for one bloated scenario and justify it in terms of waste removed and signal preserved.",
+    "concepts": [
+      {
+        "name": "Scoped Read Pattern",
+        "summary": "The scoped read pattern retrieves only the relevant subset of a file or document rather than loading the entire artifact. Instead of reading a 2,000-line codebase file, the agent reads only the function or class relevant to the current task.",
+        "why_it_matters": "Full file reads are one of the most common sources of input bloat in engineering agents. A scoped read pattern reduces input tokens by 80\u201395% on large files while preserving the information the model actually needs.",
+        "when_to_use": "When an agent needs to read files, databases, or documents. When only a portion of the artifact is relevant to the current task.",
+        "when_not_to_use": "Do not apply scoped reads when the full artifact is needed for the task \u2014 summarising or sampling when completeness is required produces incorrect outputs.",
+        "example": "A dependency audit agent needs to check if a service imports a specific library. Instead of loading the full 800-line file, it reads only the import block (lines 1\u201320). Token cost drops from ~1,600 tokens to ~40 tokens.",
+        "non_example": "Always reading full files 'to be safe'. Reading more than needed is never safer \u2014 it dilutes attention and inflates cost."
+      },
+      {
+        "name": "Search-Before-Read Pattern",
+        "summary": "The search-before-read pattern locates the specific content needed before loading it \u2014 using a search, index lookup, or metadata check to identify the relevant subset before committing to a full read.",
+        "why_it_matters": "Search-before-read prevents unnecessary full reads. It is the difference between knowing which chapter to read and reading the whole book to find one paragraph.",
+        "when_to_use": "When working with large codebases, documentation sets, or databases where the relevant content is a small fraction of the whole.",
+        "when_not_to_use": "Search-before-read requires an indexable or searchable structure. It cannot be applied to unstructured blobs without a retrieval layer.",
+        "example": "Before reviewing a function, the agent searches for the function name across the codebase, identifies the file and line range, then reads only that range. No full file load occurs.",
+        "non_example": "Skipping the search step and reading the full file to find the relevant function. This is the most common cause of input bloat in coding agents."
+      },
+      {
+        "name": "Output Trimming Pattern",
+        "summary": "Output trimming is the pattern of instructing the model to remove ceremonial, redundant, or decorative content from its responses \u2014 preambles, restatements, summaries that repeat what was just said, and excessive caveats that add no information.",
+        "why_it_matters": "Output tokens cost money and take time. In agentic pipelines, bloated output also becomes the next step's input \u2014 compounding the cost. Output trimming is the fastest win for reducing per-response cost.",
+        "when_to_use": "When model responses consistently include preamble, restatement, or ceremonial language. When the output format specification is absent or weak.",
+        "when_not_to_use": "Do not trim output so aggressively that necessary explanation, evidence, or reasoning is removed. Trimming is for padding, not substance.",
+        "example": "Adding to a skill file's output format: 'Respond with findings only. No preamble, no restatement of the task, no closing summary. If no issues are found, respond with: No issues found.' Response length drops by 60%.",
+        "non_example": "Adding 'be concise' to an instruction file and expecting it to hold. Vague brevity instructions are overridden by the model's default verbosity. Specific output format constraints are required."
+      },
+      {
+        "name": "MCP Sandboxing Pattern",
+        "summary": "MCP sandboxing is the pattern of isolating raw tool outputs \u2014 large payloads from external tool calls, API responses, or database results \u2014 rather than injecting them directly into the model's working context. The raw output is stored separately; only a processed summary enters the context.",
+        "why_it_matters": "Raw tool outputs can be enormous \u2014 a single API response or database query result can exceed 10,000 tokens. Injecting them directly into context fills the window with machine-formatted data the model must parse, rather than pre-processed signal.",
+        "when_to_use": "When designing agents that call external tools, APIs, or databases. When tool outputs are large or variable in size.",
+        "when_not_to_use": "Sandboxing requires a processing step between the tool call and context injection. It cannot be applied to tools whose raw output is directly needed for the model to reason \u2014 use judgment.",
+        "example": "A tool call returns a 5,000-token JSON payload. The sandboxing pattern processes this into a 200-token structured summary before injecting it into context. The model reasons from the summary, not the raw payload.",
+        "non_example": "Injecting full API responses into the model context because 'the model needs to see everything'. In most cases, a processed summary is more useful than raw data."
+      },
+      {
+        "name": "Query-First Retrieval Pattern",
+        "summary": "Query-first retrieval is the pattern of formulating a precise retrieval query before fetching any content \u2014 ensuring that what is retrieved is directly relevant to the current need, rather than fetching broad content and relying on the model to filter it.",
+        "why_it_matters": "Broad retrieval produces content the model must sift through in context \u2014 wasting tokens on irrelevant material. Query-first retrieval ensures that what enters context is already scoped to the task.",
+        "when_to_use": "When designing RAG (retrieval-augmented generation) flows, knowledge base lookups, or any pattern where content is fetched before the model responds.",
+        "when_not_to_use": "Query-first retrieval requires a clear understanding of what is needed before retrieval. If the need is ambiguous, clarify with the user before retrieving.",
+        "example": "Instead of retrieving all documentation about the payments API, the agent first formulates a query: 'authentication error codes for payments API v2'. Retrieval returns 3 relevant pages instead of 40.",
+        "non_example": "Retrieving all documents tagged 'payments' and letting the model find the relevant section. Broad retrieval with in-context filtering wastes tokens and dilutes attention."
+      }
+    ],
+    "misconceptions": [
+      {
+        "misconception": "Less data is always better",
+        "why_wrong": "Over-optimisation removes context the model needs to reason correctly. Removing necessary information to save tokens produces incorrect outputs that require more retries \u2014 costing more in the end.",
+        "correct_view": "Optimisation is selective relevance preservation. The goal is removing waste while preserving signal \u2014 not minimising tokens indiscriminately.",
+        "typical_phrase": "'I am going to cut everything I can to reduce tokens.'",
+        "correction_strategy": "Ask: 'If you removed the function signature and error message from a debugging context to save 200 tokens, and the model then gave an incorrect answer requiring three retries, was the optimisation actually a saving?'"
+      },
+      {
+        "misconception": "Output trimming solves all token problems",
+        "why_wrong": "Output trimming addresses output bloat only. It does not fix input bloat (too much in the prompt) or session bloat (accumulated history). Applying output trimming to an input or session bloat problem produces minimal improvement.",
+        "correct_view": "Each bloat type requires its own pattern. Output trimming is one of seven patterns \u2014 it is effective for its specific problem and ineffective for others.",
+        "typical_phrase": "'I added brevity instructions to my skill file \u2014 that should fix the token problem.'",
+        "correction_strategy": "Ask: 'If the dominant waste in your session is 8,000 tokens of accumulated history, how much does output trimming help if each response is already only 300 tokens?'"
+      }
+    ],
+    "socratic_bank": [
+      {
+        "type": "Discovery",
+        "prompt": "Your coding agent reads the entire 2,000-line service file every time someone asks about one function. What does that cost, and what is the risk?",
+        "use_when": "Opening scenario for Module 6 patterns",
+        "expected_response": "High token cost / irrelevant content / attention dilution",
+        "if_correct": "Ask: 'What pattern would reduce that cost while still giving the model what it needs?'",
+        "if_partial": "Ask: 'How much of that 2,000-line file does the model actually need to answer a question about one function?'",
+        "if_incorrect": "Ask: 'What would you change about how the file is read?'"
+      },
+      {
+        "type": "Probe",
+        "prompt": "You chose output trimming for this scenario. What is the dominant waste in a session where history has grown to 12,000 tokens and each response is 400 tokens?",
+        "use_when": "When learner defaults to output trimming",
+        "expected_response": "The history is the dominant waste / output trimming is the wrong fix",
+        "if_correct": "Ask: 'So which pattern addresses the actual dominant waste here \u2014 and why is output trimming not the highest-ROI choice?'",
+        "if_partial": "Ask: 'Compare the savings: trimming 400-token responses versus pruning 12,000 tokens of history. Which has higher ROI?'",
+        "if_incorrect": "Ask: 'Output trimming fixes output bloat. What type of bloat is the 12,000-token history?'"
+      },
+      {
+        "type": "Probe",
+        "prompt": "You applied scoped reads. What signal must remain in context for the model to answer correctly \u2014 and what did you remove?",
+        "use_when": "After learner applies a pattern \u2014 probe the trade-off",
+        "expected_response": "The relevant function and its dependencies must remain / removed unrelated code",
+        "if_correct": "Ask: 'What is the risk if you scope the read too aggressively and remove a dependency the model needed?'",
+        "if_partial": "Ask: 'How do you know the subset you loaded is sufficient?'",
+        "if_incorrect": "Ask: 'What would you expect to see in the output if you accidentally removed something the model needed?'"
+      },
+      {
+        "type": "Misconception Challenge",
+        "prompt": "You said less data is always better. What happens if you scope the read so tightly that you exclude the error handler the model needed to diagnose the bug?",
+        "use_when": "When learner over-applies optimisation",
+        "expected_response": "The model gives a wrong answer / it cannot diagnose without that context",
+        "if_correct": "Ask: 'So what is the actual goal of optimisation \u2014 fewer tokens, or the right tokens?'",
+        "if_partial": "Ask: 'What is the minimum necessary context \u2014 and how is that different from the minimum possible context?'",
+        "if_incorrect": "Ask: 'Optimisation that produces incorrect answers requiring three retries \u2014 is that actually saving tokens?'"
+      },
+      {
+        "type": "Recovery",
+        "prompt": "Let us use a five-step frame: symptom, pattern, preserved signal, removed waste, overuse risk. What is the symptom in this scenario?",
+        "use_when": "Recovery when learner cannot match pattern to problem",
+        "expected_response": "Names the visible problem",
+        "if_correct": "Ask: 'Good. Which of the seven patterns most directly addresses that symptom?'",
+        "if_partial": "Walk through each step in sequence, asking for the learner's input at each stage before moving to the next.",
+        "if_incorrect": "Ask: 'What does the session look like \u2014 slow, expensive, drifting? That is the symptom. Now let us name it precisely.'"
+      }
+    ],
+    "practice_bank": [
+      {
+        "type": "Scenario",
+        "difficulty": "Foundation",
+        "title": "M6 Scenario Foundation Practice",
+        "context": "Realistic engineering scenario for M6 requiring a scenario response at foundation difficulty.",
+        "prompt_to_learner": "Complete this scenario task for M6. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Scenario",
+        "difficulty": "Intermediate",
+        "title": "M6 Scenario Intermediate Practice",
+        "context": "Realistic engineering scenario for M6 requiring a scenario response at intermediate difficulty.",
+        "prompt_to_learner": "Complete this scenario task for M6. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Scenario",
+        "difficulty": "Advanced",
+        "title": "M6 Scenario Advanced Practice",
+        "context": "Realistic engineering scenario for M6 requiring a scenario response at advanced difficulty.",
+        "prompt_to_learner": "Complete this scenario task for M6. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Diagnose",
+        "difficulty": "Foundation",
+        "title": "M6 Diagnose Foundation Practice",
+        "context": "Realistic engineering scenario for M6 requiring a diagnose response at foundation difficulty.",
+        "prompt_to_learner": "Complete this diagnose task for M6. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Diagnose",
+        "difficulty": "Intermediate",
+        "title": "M6 Diagnose Intermediate Practice",
+        "context": "Realistic engineering scenario for M6 requiring a diagnose response at intermediate difficulty.",
+        "prompt_to_learner": "Complete this diagnose task for M6. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Diagnose",
+        "difficulty": "Advanced",
+        "title": "M6 Diagnose Advanced Practice",
+        "context": "Realistic engineering scenario for M6 requiring a diagnose response at advanced difficulty.",
+        "prompt_to_learner": "Complete this diagnose task for M6. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Build",
+        "difficulty": "Foundation",
+        "title": "M6 Build Foundation Practice",
+        "context": "Realistic engineering scenario for M6 requiring a build response at foundation difficulty.",
+        "prompt_to_learner": "Complete this build task for M6. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Build",
+        "difficulty": "Intermediate",
+        "title": "M6 Build Intermediate Practice",
+        "context": "Realistic engineering scenario for M6 requiring a build response at intermediate difficulty.",
+        "prompt_to_learner": "Complete this build task for M6. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Build",
+        "difficulty": "Advanced",
+        "title": "M6 Build Advanced Practice",
+        "context": "Realistic engineering scenario for M6 requiring a build response at advanced difficulty.",
+        "prompt_to_learner": "Complete this build task for M6. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Compare",
+        "difficulty": "Foundation",
+        "title": "M6 Compare Foundation Practice",
+        "context": "Realistic engineering scenario for M6 requiring a compare response at foundation difficulty.",
+        "prompt_to_learner": "Complete this compare task for M6. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Compare",
+        "difficulty": "Intermediate",
+        "title": "M6 Compare Intermediate Practice",
+        "context": "Realistic engineering scenario for M6 requiring a compare response at intermediate difficulty.",
+        "prompt_to_learner": "Complete this compare task for M6. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Compare",
+        "difficulty": "Advanced",
+        "title": "M6 Compare Advanced Practice",
+        "context": "Realistic engineering scenario for M6 requiring a compare response at advanced difficulty.",
+        "prompt_to_learner": "Complete this compare task for M6. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      }
+    ]
+  },
+  "M7": {
+    "id": "M7",
+    "name": "From Skills to Agents \u2014 The SDLC Transition",
+    "learning_objective": "Design agent architectures that distinguish skills from agents, specify memory types, control tool handling, define instruction structure, and apply governance constraints.",
+    "core_mental_model": "An agent is not a bigger prompt; it is a controlled system coordinating context, tools, memory, and governance over time.",
+    "in_scope": "Skill-vs-agent distinction, memory types, tool containment, instruction structure, governance-aware design.",
+    "out_of_scope": "Deep infrastructure implementation, custom connector internals, production admin operations.",
+    "one_next_step_template": "Your next step is: evaluate one agent design against memory type, tool handling, instruction structure, and governance, then propose one highest-value change.",
+    "concepts": [
+      {
+        "name": "Agent Architecture",
+        "summary": "An agent architecture is a designed system that combines persistent instructions, a knowledge or tool layer, a memory model, and an orchestration logic to handle tasks that require multiple steps, decisions, or tool interactions \u2014 going beyond what a single prompt or skill file can achieve.",
+        "why_it_matters": "Understanding agent architecture prevents engineers from building agents that are really just long prompts. An architecture requires explicit decisions about memory, tool handling, instruction scope, and governance \u2014 not just a bigger system prompt.",
+        "when_to_use": "When designing a system that must handle multi-step tasks, maintain state across interactions, or coordinate multiple tools.",
+        "when_not_to_use": "Do not call something an agent architecture if it is a single skill file with no memory or tool coordination. The term carries specific design obligations.",
+        "example": "A code review agent architecture: instruction file (persistent role and governance), skill files (PR review, security review, test coverage check), working memory (current PR context), tool integration (GitHub API for file access), governance (scope boundary and fallback behaviour).",
+        "non_example": "Calling a long system prompt an 'agent'. An agent has designed memory, tools, and orchestration \u2014 not just more instructions."
+      },
+      {
+        "name": "Working Memory",
+        "summary": "Working memory in an agent is the context available within the current session \u2014 the active conversation, current tool outputs, and task-specific state that exists only for the duration of the interaction. When the session ends, working memory is cleared.",
+        "why_it_matters": "Working memory must be actively managed \u2014 it fills up and degrades if unmanaged. Engineers designing agents need to know what belongs in working memory versus what should be persisted elsewhere.",
+        "when_to_use": "When designing session-scoped state management. When deciding what the agent needs to remember within a task but not across tasks.",
+        "when_not_to_use": "Do not mistake working memory for persistent memory. Information in working memory is lost when the session ends.",
+        "example": "A PR review agent holds the current PR's diff, the engineer's scope instructions, and interim findings in working memory. These are needed for the current review and discarded after. The team's coding standards are not in working memory \u2014 they are loaded from persistent storage on demand.",
+        "non_example": "Designing an agent that expects to remember a user's preferences across separate sessions using working memory. That requires persistent memory, not session memory."
+      },
+      {
+        "name": "Persistent Memory",
+        "summary": "Persistent memory is information the agent retains across sessions \u2014 user preferences, project settings, historical decisions, and learned patterns that should be available the next time the agent is used, without being re-stated.",
+        "why_it_matters": "Without explicit persistent memory design, teams either lose valuable cross-session context or accidentally carry sensitive data further than intended. Persistent memory requires deliberate decisions about what to retain, how long to retain it, and who can access it.",
+        "when_to_use": "When designing agents that serve the same users repeatedly, where cross-session learning or preference retention adds value.",
+        "when_not_to_use": "Do not default to persistent memory for everything. Persistent memory carries governance obligations \u2014 data retention, access control, and update mechanisms.",
+        "example": "A code quality agent persistently remembers: this team prefers functional programming patterns, their test framework is Jest, and they have a known exception to the security policy for internal admin routes. This context loads automatically without the engineer restating it each session.",
+        "non_example": "Storing every session's full conversation in persistent memory. Persistent memory should hold distilled, reusable facts \u2014 not raw transcripts."
+      },
+      {
+        "name": "Temporal Memory",
+        "summary": "Temporal memory is information that is valid for a limited time and must be refreshed or discarded when it expires. Cached API schemas, current sprint goals, today's deployment status, and time-sensitive configuration values are temporal \u2014 they change and become dangerous if remembered too long.",
+        "why_it_matters": "Temporal memory that is not refreshed becomes misleading. An agent that confidently uses a cached API schema from three weeks ago will generate incorrect guidance when the API has changed.",
+        "when_to_use": "When identifying what type of information to persist. Any fact that has a validity window belongs in temporal memory with an expiry policy.",
+        "when_not_to_use": "Do not treat temporal memory the same as persistent memory. Temporal memory requires an expiry or refresh mechanism \u2014 not just a store.",
+        "example": "An agent caches the current sprint's open tickets as temporal memory. The cache is valid for 4 hours. After 4 hours, the agent refreshes from the ticket system before answering questions about sprint status.",
+        "non_example": "Persisting today's deployment status indefinitely. Deployment status changes multiple times a day \u2014 it is temporal, not persistent."
+      },
+      {
+        "name": "Governance in Agent Design",
+        "summary": "Governance in agent design is the set of explicit constraints, safety rules, scope boundaries, fallback behaviours, and accountability mechanisms built into the agent's architecture \u2014 not assumed or left to the model's defaults.",
+        "why_it_matters": "Internal agents are not exempt from governance. An agent that handles code, data, or user interactions without explicit governance constraints is a liability \u2014 especially in regulated industries or where the agent's outputs have real-world consequences.",
+        "when_to_use": "When designing any agent that will be used in a production or team context. Governance is not optional for production agents.",
+        "when_not_to_use": "Do not assume governance is handled by the underlying model. Governance must be explicitly designed into the instruction architecture.",
+        "example": "A code review agent's governance layer: only review code in the current PR (scope boundary), do not suggest changes to test infrastructure without a human in the loop (safety constraint), if asked to review sensitive payment code fall back to a human reviewer (fallback behaviour), log all security findings for audit (accountability).",
+        "non_example": "Saying 'governance is the model's responsibility'. The model's defaults are not governance. Governance is designed, explicit, and auditable."
+      }
+    ],
+    "misconceptions": [
+      {
+        "misconception": "An agent is just a longer prompt",
+        "why_wrong": "A prompt has no memory, no tool coordination, no state management, and no governance layer. An agent is a designed system with explicit decisions across all of these dimensions. Equating them produces architectures that are actually just fragile long prompts.",
+        "correct_view": "Agent design requires explicit decisions about memory type, tool handling, instruction structure, and governance. These cannot be substituted with prompt length.",
+        "typical_phrase": "'My agent is really just a very detailed system prompt with all the instructions.'",
+        "correction_strategy": "Ask: 'What happens to your system when the task takes 10 turns and requires three tool calls? Does your design handle state, tool containment, and fallback \u2014 or does it rely on the model figuring it out?'"
+      },
+      {
+        "misconception": "Governance only matters for public-facing agents",
+        "why_wrong": "Internal agents handle real code, real data, and real decisions. Governance failures in internal tools are just as consequential as in public tools \u2014 they affect code quality, security posture, and team trust.",
+        "correct_view": "Governance is required for any agent that handles consequential tasks, regardless of whether it faces internal or external users.",
+        "typical_phrase": "'This agent is just for our team \u2014 we do not need formal governance constraints.'",
+        "correction_strategy": "Ask: 'If your internal code review agent misses a critical security vulnerability because its scope boundary was not explicit, who is responsible? What governance mechanism would have prevented that?'"
+      },
+      {
+        "misconception": "Working memory and persistent memory are the same",
+        "why_wrong": "Working memory exists only for the current session and is cleared when the session ends. Persistent memory survives across sessions. Using working memory for cross-session state causes data loss; using persistent memory for session-only state creates privacy and governance risks.",
+        "correct_view": "Memory type selection is a design decision with real consequences. The right memory type depends on how long the information needs to remain valid and who should be able to access it.",
+        "typical_phrase": "'The agent remembers what we discussed \u2014 I do not need to set up separate storage for preferences.'",
+        "correction_strategy": "Ask: 'What happens to the preferences the agent learned in today's session when the engineer starts a new session tomorrow? If they are gone, was that by design or by accident?'"
+      }
+    ],
+    "socratic_bank": [
+      {
+        "type": "Discovery",
+        "prompt": "A team calls their system an agent. It has a very long system prompt and no tool configuration, no memory design, and no governance layer. What makes something an agent rather than a long prompt?",
+        "use_when": "Opening question to surface agent vs prompt distinction",
+        "expected_response": "Memory / tools / state / orchestration / governance",
+        "if_correct": "Ask: 'Given that list, what would you say is missing from what this team built?'",
+        "if_partial": "Ask: 'What decisions does an agent have to make that a static prompt cannot make?'",
+        "if_incorrect": "Ask: 'What does an agent do between user turns that a prompt does not?'"
+      },
+      {
+        "type": "Probe",
+        "prompt": "The agent needs to remember a user's coding preferences. Should that live in working memory or persistent memory \u2014 and why?",
+        "use_when": "After learner understands memory types exist",
+        "expected_response": "Persistent memory \u2014 preferences survive sessions",
+        "if_correct": "Ask: 'What would happen to those preferences if they were stored in working memory and the user started a new session?'",
+        "if_partial": "Ask: 'How long do preferences need to remain valid \u2014 for this session only, or across many sessions?'",
+        "if_incorrect": "Ask: 'What is the governance implication of storing user preferences in persistent memory?'"
+      },
+      {
+        "type": "Probe",
+        "prompt": "The agent calls an external API and receives a 6,000-token JSON response. Where does that response go, and what is the risk if it goes directly into working context?",
+        "use_when": "To surface tool containment and sandboxing need",
+        "expected_response": "It fills the context / dilutes relevance / expensive",
+        "if_correct": "Ask: 'What pattern would prevent the raw payload from polluting the working context?'",
+        "if_partial": "Ask: 'What would you extract from that 6,000-token response to put in context instead?'",
+        "if_incorrect": "Ask: 'If the agent does this on every turn across a 10-turn session, what happens to the context?'"
+      },
+      {
+        "type": "Misconception Challenge",
+        "prompt": "You said governance is unnecessary for an internal tool. What happens if the agent's scope boundary is not explicit and it begins reviewing files outside the current PR?",
+        "use_when": "When learner dismisses governance for internal use",
+        "expected_response": "It could review sensitive code / cause security issues / produce irrelevant feedback",
+        "if_correct": "Ask: 'What explicit governance rule would have prevented that? And is that rule the model's default, or does it need to be designed?'",
+        "if_partial": "Ask: 'Internal use does not mean low stakes \u2014 what is the consequence of an unscoped code review agent accessing production secrets?'",
+        "if_incorrect": "Ask: 'Is the model's default behaviour the same as a governance policy? What is the difference?'"
+      },
+      {
+        "type": "Recovery",
+        "prompt": "Let us evaluate this agent design against four criteria: memory type, tool handling, instruction structure, and governance. Score each one: Pass, Needs work, or Missing. Start with memory \u2014 what do you see?",
+        "use_when": "Recovery when learner cannot evaluate an agent design",
+        "expected_response": "Some attempt to assess memory",
+        "if_correct": "Move through each criterion in sequence after the learner scores each one.",
+        "if_partial": "Ask: 'Set aside everything else. Look only at the memory design. Is there an explicit statement of what is session-local versus what persists?'",
+        "if_incorrect": "Model the scoring of one criterion explicitly, then ask the learner to score the remaining three independently."
+      }
+    ],
+    "practice_bank": [
+      {
+        "type": "Build",
+        "difficulty": "Foundation",
+        "title": "M7 Build Foundation Practice",
+        "context": "Realistic engineering scenario for M7 requiring a build response at foundation difficulty.",
+        "prompt_to_learner": "Complete this build task for M7. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Build",
+        "difficulty": "Intermediate",
+        "title": "M7 Build Intermediate Practice",
+        "context": "Realistic engineering scenario for M7 requiring a build response at intermediate difficulty.",
+        "prompt_to_learner": "Complete this build task for M7. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Build",
+        "difficulty": "Advanced",
+        "title": "M7 Build Advanced Practice",
+        "context": "Realistic engineering scenario for M7 requiring a build response at advanced difficulty.",
+        "prompt_to_learner": "Complete this build task for M7. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Evaluate",
+        "difficulty": "Foundation",
+        "title": "M7 Evaluate Foundation Practice",
+        "context": "Realistic engineering scenario for M7 requiring a evaluate response at foundation difficulty.",
+        "prompt_to_learner": "Complete this evaluate task for M7. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Evaluate",
+        "difficulty": "Intermediate",
+        "title": "M7 Evaluate Intermediate Practice",
+        "context": "Realistic engineering scenario for M7 requiring a evaluate response at intermediate difficulty.",
+        "prompt_to_learner": "Complete this evaluate task for M7. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Evaluate",
+        "difficulty": "Advanced",
+        "title": "M7 Evaluate Advanced Practice",
+        "context": "Realistic engineering scenario for M7 requiring a evaluate response at advanced difficulty.",
+        "prompt_to_learner": "Complete this evaluate task for M7. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Score",
+        "difficulty": "Foundation",
+        "title": "M7 Score Foundation Practice",
+        "context": "Realistic engineering scenario for M7 requiring a score response at foundation difficulty.",
+        "prompt_to_learner": "Complete this score task for M7. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Score",
+        "difficulty": "Intermediate",
+        "title": "M7 Score Intermediate Practice",
+        "context": "Realistic engineering scenario for M7 requiring a score response at intermediate difficulty.",
+        "prompt_to_learner": "Complete this score task for M7. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      },
+      {
+        "type": "Score",
+        "difficulty": "Advanced",
+        "title": "M7 Score Advanced Practice",
+        "context": "Realistic engineering scenario for M7 requiring a score response at advanced difficulty.",
+        "prompt_to_learner": "Complete this score task for M7. Stay inside module scope, justify your reasoning, and avoid later-module leakage unless explicitly relevant.",
+        "ideal_answer_elements": "Correct core concept; evidence-based reasoning; one clear answer; module-appropriate depth; explicit next step or recommendation when relevant.",
+        "common_wrong_answers": "Generic answer; unsupported claims; wrong module jump; symptom-cause confusion; multiple unprioritized fixes where one is required.",
+        "feedback_correct": "Correct. Your reasoning is grounded, module-appropriate, and well scoped.",
+        "feedback_partial": "Partially correct. Strengthen the missing concept, evidence, or prioritization and try again.",
+        "feedback_incorrect": "Not yet correct. Revisit the core mental model for this module and answer with one concrete example or one explicit criterion."
+      }
+    ]
+  }
+}
