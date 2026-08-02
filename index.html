@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GAMA Mentigo — Token Intelligence Tutor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #12161f;
+    --card: #1b212e;
+    --card-hover: #222939;
+    --border: #2b3444;
+    --text: #e8ecf3;
+    --text-dim: #8b93a3;
+    --amber: #d9a441;
+    --amber-dim: #6b5730;
+    --teal: #4fb8a8;
+    --coral: #d9724a;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--ink);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+  }
+  h1, h2, h3, .display { font-family: 'Fraunces', serif; }
+  .app {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    height: 100vh;
+  }
+  /* Sidebar */
+  .sidebar {
+    background: #0e1119;
+    border-right: 1px solid var(--border);
+    padding: 24px 18px;
+    display: flex; flex-direction: column;
+    overflow-y: auto;
+  }
+  .brand { margin-bottom: 4px; }
+  .brand h1 { font-size: 22px; font-weight: 600; margin: 0; color: var(--text); }
+  .brand .tag { font-size: 12px; color: var(--amber); font-family: 'IBM Plex Mono', monospace; letter-spacing: 0.03em; }
+  .brand .sub { font-size: 12.5px; color: var(--text-dim); margin-top: 10px; line-height: 1.5; }
+
+  .module-list { margin-top: 28px; display: flex; flex-direction: column; gap: 6px; }
+  .module-list .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 6px; font-family: 'IBM Plex Mono', monospace;}
+  .module-btn {
+    display: flex; align-items: baseline; gap: 10px;
+    background: transparent; border: 1px solid transparent;
+    color: var(--text-dim); text-align: left;
+    padding: 9px 10px; border-radius: 8px; cursor: pointer;
+    font-size: 13.5px; font-family: 'IBM Plex Sans', sans-serif;
+    transition: all 0.15s ease;
+  }
+  .module-btn .num { font-family: 'IBM Plex Mono', monospace; color: var(--amber-dim); font-size: 12px; min-width: 18px; }
+  .module-btn:hover { background: var(--card); color: var(--text); }
+  .module-btn.active { background: var(--card); color: var(--text); border-color: var(--border); }
+  .module-btn.active .num { color: var(--amber); }
+
+  .mode-row { margin-top: 24px; }
+  .mode-row .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 8px; font-family: 'IBM Plex Mono', monospace;}
+  .mode-chip {
+    display: inline-block; margin: 0 6px 6px 0;
+    padding: 6px 11px; border-radius: 20px;
+    border: 1px solid var(--border); color: var(--text-dim);
+    font-size: 12px; cursor: pointer; background: transparent;
+    font-family: 'IBM Plex Mono', monospace;
+    transition: all 0.15s ease;
+  }
+  .mode-chip:hover { border-color: var(--amber-dim); color: var(--text); }
+
+  .sidebar-footer { margin-top: auto; padding-top: 18px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-dim); line-height: 1.6; }
+
+  /* Main */
+  .main { display: flex; flex-direction: column; height: 100vh; }
+  .topbar {
+    padding: 16px 28px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    background: linear-gradient(180deg, #151a24, #12161f);
+  }
+  .topbar .module-title { font-size: 15px; font-weight: 600; }
+  .topbar .module-title .m-id { color: var(--amber); font-family: 'IBM Plex Mono', monospace; font-size: 12px; margin-right: 8px; }
+  .gauge-wrap { display: flex; align-items: center; gap: 10px; }
+  .gauge-label { font-size: 10.5px; color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em; }
+  .gauge {
+    width: 140px; height: 6px; background: #2b3444; border-radius: 4px; overflow: hidden;
+  }
+  .gauge-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--teal), var(--amber));
+    transition: width 0.4s ease;
+  }
+
+  .chat-scroll { flex: 1; overflow-y: auto; padding: 28px; display: flex; flex-direction: column; gap: 18px; }
+  .msg { max-width: 640px; line-height: 1.55; font-size: 14.5px; }
+  .msg.user { align-self: flex-end; }
+  .msg.assistant { align-self: flex-start; }
+  .msg .bubble { padding: 13px 16px; border-radius: 12px; white-space: pre-wrap; }
+  .msg.user .bubble { background: var(--amber-dim); color: #fbead0; border-bottom-right-radius: 3px; }
+  .msg.assistant .bubble { background: var(--card); border: 1px solid var(--border); border-bottom-left-radius: 3px; }
+  .msg .who { font-size: 10.5px; color: var(--text-dim); margin-bottom: 5px; font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  .welcome {
+    max-width: 620px; margin: 40px auto; text-align: center;
+  }
+  .welcome h2 { font-size: 26px; margin-bottom: 8px; }
+  .welcome p { color: var(--text-dim); font-size: 14px; line-height: 1.6; }
+  .starter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 22px; }
+  .starter-btn {
+    background: var(--card); border: 1px solid var(--border); color: var(--text);
+    padding: 13px 14px; border-radius: 10px; text-align: left; cursor: pointer; font-size: 13px;
+    transition: all 0.15s ease;
+  }
+  .starter-btn:hover { background: var(--card-hover); border-color: var(--amber-dim); }
+  .starter-btn .t { color: var(--amber); font-family: 'IBM Plex Mono', monospace; font-size: 11px; display: block; margin-bottom: 4px; }
+
+  .input-bar { padding: 18px 28px 24px; border-top: 1px solid var(--border); }
+  .input-row {
+    display: flex; gap: 10px; background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 8px 8px 8px 16px; align-items: flex-end;
+  }
+  textarea {
+    flex: 1; background: transparent; border: none; outline: none; color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif; font-size: 14px; resize: none; max-height: 140px;
+    padding: 8px 0; line-height: 1.5;
+  }
+  .send-btn {
+    background: var(--amber); color: #1b1200; border: none; border-radius: 8px;
+    padding: 10px 16px; font-weight: 600; font-size: 13px; cursor: pointer;
+    font-family: 'IBM Plex Sans', sans-serif;
+  }
+  .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .hint { font-size: 11px; color: var(--text-dim); margin-top: 8px; text-align: center; }
+
+  .typing { display: flex; gap: 4px; padding: 4px 0; }
+  .typing span { width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim); animation: bounce 1.2s infinite ease-in-out; }
+  .typing span:nth-child(2) { animation-delay: 0.15s; }
+  .typing span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes bounce { 0%, 80%, 100% { transform: translateY(0); opacity: 0.4; } 40% { transform: translateY(-4px); opacity: 1; } }
+
+  @media (max-width: 760px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <h1>Mentigo</h1>
+      <div class="tag">GAMA · MENTORING ON THE GO</div>
+      <div class="sub">Token Intelligence Tutor &amp; Coach — a Socratic guide through Token Intelligence for Engineering Excellence.</div>
+    </div>
+
+    <div class="module-list" id="moduleList">
+      <div class="label">Programme — 7 modules</div>
+    </div>
+
+    <div class="mode-row">
+      <div class="label">Quick modes</div>
+      <span class="mode-chip" data-mode="concept">Concept</span>
+      <span class="mode-chip" data-mode="practice">Practice</span>
+      <span class="mode-chip" data-mode="review">Review my work</span>
+      <span class="mode-chip" data-mode="readiness">Readiness check</span>
+    </div>
+
+    <div class="sidebar-footer">
+      Grounded strictly in the approved programme sources. If something is out of scope, Mentigo will say so rather than guess.
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="module-title"><span class="m-id" id="topModuleId">M1</span><span id="topModuleName">Token Intelligence in the Engineering Context</span></div>
+      <div class="gauge-wrap">
+        <span class="gauge-label">Session budget</span>
+        <div class="gauge"><div class="gauge-fill" id="gaugeFill"></div></div>
+      </div>
+    </div>
+
+    <div class="chat-scroll" id="chatScroll">
+      <div class="welcome" id="welcomeBlock">
+        <h2 class="display">Let's find out what you already know.</h2>
+        <p>Pick a module on the left, or just start typing. Mentigo will ask before it explains — that's the whole method.</p>
+        <div class="starter-grid">
+          <button class="starter-btn" data-starter="concept">
+            <span class="t">CONCEPT MODE</span>
+            Teach me this module from scratch
+          </button>
+          <button class="starter-btn" data-starter="practice">
+            <span class="t">PRACTICE MODE</span>
+            Give me one exercise to try
+          </button>
+          <button class="starter-btn" data-starter="review">
+            <span class="t">REVIEW MODE</span>
+            Review something I wrote
+          </button>
+          <button class="starter-btn" data-starter="readiness">
+            <span class="t">READINESS MODE</span>
+            Check if I'm ready to move on
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-bar">
+      <div class="input-row">
+        <textarea id="userInput" rows="1" placeholder="Type your answer or question..."></textarea>
+        <button class="send-btn" id="sendBtn">Send</button>
+      </div>
+      <div class="hint">Mentigo stays inside the current module on purpose — that's part of how it teaches.</div>
+    </div>
+  </main>
+</div>
+
+<script>
+const MODULES = [
+  { id: "M1", name: "Token Intelligence in the Engineering Context" },
+  { id: "M2", name: "The Evolution from Prompting to Context Engineering" },
+  { id: "M3", name: "Context Engineering — What It Is and How It Works" },
+  { id: "M4", name: "Diagnosing Token Cost" },
+  { id: "M5", name: "Instructions and Skills — The Two-File Architecture" },
+  { id: "M6", name: "Seven Patterns for Advanced Token Optimization" },
+  { id: "M7", name: "From Skills to Agents — The SDLC Transition" },
+];
+
+const MAX_TURNS = 24;
+let currentModule = "M1";
+let history = []; // {role, content}
+
+const moduleListEl = document.getElementById("moduleList");
+MODULES.forEach((m, i) => {
+  const btn = document.createElement("button");
+  btn.className = "module-btn" + (m.id === currentModule ? " active" : "");
+  btn.dataset.id = m.id;
+  btn.innerHTML = `<span class="num">${String(i+1).padStart(2,'0')}</span><span>${m.name}</span>`;
+  btn.onclick = () => selectModule(m.id);
+  moduleListEl.appendChild(btn);
+});
+
+function selectModule(id) {
+  currentModule = id;
+  history = [];
+  document.querySelectorAll(".module-btn").forEach(b => b.classList.toggle("active", b.dataset.id === id));
+  const m = MODULES.find(x => x.id === id);
+  document.getElementById("topModuleId").textContent = m.id;
+  document.getElementById("topModuleName").textContent = m.name;
+  document.getElementById("chatScroll").innerHTML = "";
+  updateGauge();
+}
+
+document.querySelectorAll(".mode-chip").forEach(chip => {
+  chip.onclick = () => sendStarter(chip.dataset.mode);
+});
+document.querySelectorAll(".starter-btn").forEach(btn => {
+  btn.onclick = () => sendStarter(btn.dataset.starter);
+});
+
+const STARTERS = {
+  concept: "I'd like to learn this module. Ask me what I already know before you explain anything.",
+  practice: "Give me one practice exercise for this module.",
+  review: "I have something I wrote I'd like you to review before explaining any theory.",
+  readiness: "I think I'm ready to move on from this module — please run a readiness check.",
+};
+
+function sendStarter(key) {
+  sendMessage(STARTERS[key]);
+}
+
+const chatScroll = document.getElementById("chatScroll");
+const userInput = document.getElementById("userInput");
+const sendBtn = document.getElementById("sendBtn");
+
+userInput.addEventListener("input", () => {
+  userInput.style.height = "auto";
+  userInput.style.height = Math.min(userInput.scrollHeight, 140) + "px";
+});
+userInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    const text = userInput.value.trim();
+    if (text) sendMessage(text);
+  }
+});
+sendBtn.addEventListener("click", () => {
+  const text = userInput.value.trim();
+  if (text) sendMessage(text);
+});
+
+function renderMessage(role, text) {
+  const welcome = document.getElementById("welcomeBlock");
+  if (welcome) welcome.remove();
+
+  const wrap = document.createElement("div");
+  wrap.className = "msg " + (role === "user" ? "user" : "assistant");
+  const who = document.createElement("div");
+  who.className = "who";
+  who.textContent = role === "user" ? "You" : "Mentigo";
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.textContent = text;
+  wrap.appendChild(who);
+  wrap.appendChild(bubble);
+  chatScroll.appendChild(wrap);
+  chatScroll.scrollTop = chatScroll.scrollHeight;
+  return bubble;
+}
+
+function renderTyping() {
+  const wrap = document.createElement("div");
+  wrap.className = "msg assistant";
+  wrap.id = "typingIndicator";
+  wrap.innerHTML = `<div class="who">Mentigo</div><div class="bubble"><div class="typing"><span></span><span></span><span></span></div></div>`;
+  chatScroll.appendChild(wrap);
+  chatScroll.scrollTop = chatScroll.scrollHeight;
+}
+function removeTyping() {
+  const el = document.getElementById("typingIndicator");
+  if (el) el.remove();
+}
+
+function updateGauge() {
+  const pct = Math.min(100, (history.length / MAX_TURNS) * 100);
+  document.getElementById("gaugeFill").style.width = pct + "%";
+}
+
+async function sendMessage(text) {
+  userInput.value = "";
+  userInput.style.height = "auto";
+  sendBtn.disabled = true;
+
+  renderMessage("user", text);
+  history.push({ role: "user", content: text });
+  updateGauge();
+  renderTyping();
+
+  try {
+    const res = await fetch("/.netlify/functions/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ moduleId: currentModule, messages: history }),
+    });
+    const data = await res.json();
+    removeTyping();
+
+    if (!res.ok) {
+      renderMessage("assistant", "Something went wrong reaching the tutor. Please try again in a moment.");
+      console.error(data);
+    } else {
+      renderMessage("assistant", data.reply);
+      history.push({ role: "assistant", content: data.reply });
+      updateGauge();
+    }
+  } catch (err) {
+    removeTyping();
+    renderMessage("assistant", "Connection issue — please check your network and try again.");
+    console.error(err);
+  } finally {
+    sendBtn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>
