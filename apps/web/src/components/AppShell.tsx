@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { copy } from "@/lib/copy";
 import { isAuthBypassEnabled } from "@/lib/auth-client";
 
@@ -12,6 +13,22 @@ export function AppShell({
   active?: "home" | "tutor" | "coach";
 }) {
   const bypass = isAuthBypassEnabled();
+  const [demoMode, setDemoMode] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/status")
+      .then((res) => res.json())
+      .then((data: { llmConfigured?: boolean }) => {
+        if (!cancelled) setDemoMode(!data.llmConfigured);
+      })
+      .catch(() => {
+        if (!cancelled) setDemoMode(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="app-shell">
@@ -30,6 +47,11 @@ export function AppShell({
         {bypass ? (
           <div className="full-band auth-banner" role="status">
             {copy.auth.bypassBanner}
+          </div>
+        ) : null}
+        {demoMode ? (
+          <div className="full-band demo-banner" role="status">
+            {copy.demo.banner}
           </div>
         ) : null}
       </header>

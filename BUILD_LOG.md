@@ -93,3 +93,20 @@ Audit trail for Plan → Act → Validate → Refine loops. One entry per unit o
 
 ### REFINE
 - n/a
+
+---
+
+## 2026-08-08 — Branding + clean demo replies
+
+### PLAN
+- Rename product to GAMA Mentigo; org line to UST | G.A. MENON ACADEMY.
+- Remove Azure config junk from chat demo replies; show demo status in banner instead.
+
+### ACT
+- Updated copy, layout metadata, prompts, AppShell demo banner, azureOpenAI mock replies, /api/status.
+
+### VALIDATE
+- 21/21 tests; build clean.
+
+### REFINE
+- n/a

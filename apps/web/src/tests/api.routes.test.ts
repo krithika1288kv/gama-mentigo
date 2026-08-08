@@ -47,7 +47,9 @@ describe("API routes", () => {
     );
     expect(res.status).toBe(200);
     const text = await res.text();
-    expect(text).toContain("Demo mode");
+    expect(text.toLowerCase()).toContain("token");
+    expect(text).toContain("own words");
+    expect(text).not.toContain("Azure OpenAI not configured");
     expect(text.length).toBeGreaterThan(20);
   });
 
@@ -80,6 +82,8 @@ describe("API routes", () => {
     );
     expect(res.status).toBe(200);
     const text = await res.text();
-    expect(text).toContain("Demo mode");
+    expect(text).toContain("What worked");
+    expect(text).toContain("Suggested rewrite");
+    expect(text).not.toContain("Azure OpenAI not configured");
   });
 });

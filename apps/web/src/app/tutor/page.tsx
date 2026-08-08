@@ -86,7 +86,7 @@ export default function TutorPage() {
   return (
     <AppShell active="tutor">
       <div className="page-head">
-        <div className="sec-label">AI Factory</div>
+        <div className="sec-label">{copy.brand.suiteName}</div>
         <h1>{copy.tutor.title}</h1>
         <p className="sub">{copy.tutor.subtitle}</p>
       </div>

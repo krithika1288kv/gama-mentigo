@@ -6,9 +6,7 @@ export default function HomePage() {
   return (
     <AppShell active="home">
       <div className="page-head home animate-fade-up">
-        <div className="sec-label">
-          {copy.brand.org} · AI Factory
-        </div>
+        <div className="sec-label">{copy.brand.org}</div>
         <h1>{copy.home.title}</h1>
         <p className="sub">{copy.home.subtitle}</p>
       </div>

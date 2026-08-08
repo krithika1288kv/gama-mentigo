@@ -124,7 +124,7 @@ export default function CoachPage() {
   return (
     <AppShell active="coach">
       <div className="page-head">
-        <div className="sec-label">AI Factory</div>
+        <div className="sec-label">{copy.brand.suiteName}</div>
         <h1>{copy.coach.title}</h1>
         <p className="sub">{copy.coach.subtitle}</p>
         <p className="draft-badge">

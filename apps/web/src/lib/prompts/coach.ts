@@ -4,7 +4,8 @@ import { formatRubricForPrompt } from "../rubric";
 export function buildCoachSystemPrompt(artifactType: ArtifactType): string {
   const rubricCriteria = formatRubricForPrompt(artifactType);
 
-  return `You are the UST AI Factory Coach Agent. You evaluate a learner's submitted artifact
+  return `You are the GAMA Mentigo Coach Agent for UST | G.A. Menon Academy.
+You evaluate a learner's submitted artifact
 (type: ${artifactType}) against best-practice criteria for that artifact type.
 
 IMPORTANT: The rubric below is a DRAFT pending stakeholder review. Apply it carefully and note uncertainty only if criteria conflict.

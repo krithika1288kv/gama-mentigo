@@ -143,13 +143,7 @@ function mockStream(
   encoder: TextEncoder,
 ): ReadableStream<Uint8Array> {
   const lastUser = [...input.messages].reverse().find((m) => m.role === "user");
-  const preview = (lastUser?.content ?? "").slice(0, 120);
-  const text =
-    `[Demo mode — Azure OpenAI not configured]\n\n` +
-    `Received: "${preview}${preview.length >= 120 ? "…" : ""}"\n\n` +
-    `Configure AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, and AZURE_OPENAI_DEPLOYMENT ` +
-    `to enable live streaming responses.\n\n` +
-    `Want to try explaining that back in your own words?`;
+  const text = buildDemoReply(input.system, lastUser?.content ?? "");
 
   return new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -168,6 +162,35 @@ function mockStream(
       controller.close();
     },
   });
+}
+
+/** Offline-friendly demo replies when Azure OpenAI is not configured. */
+function buildDemoReply(system: string, userText: string): string {
+  const isCoach = system.includes("Coach Agent");
+  const topic = userText.trim() || "your question";
+
+  if (isCoach) {
+    return [
+      "## What worked",
+      `You shared a concrete artifact to review ("${topic.slice(0, 80)}${topic.length > 80 ? "…" : ""}"), which gives the Coach something specific to improve.`,
+      "",
+      "## What to improve",
+      "Add clearer goal, audience, and success criteria so the output is easier to judge.",
+      "",
+      "## Suggested rewrite",
+      `Goal: improve the artifact above.\nAudience: a busy teammate.\nConstraints: keep it concise and actionable.\nDraft:\n${topic.slice(0, 400)}`,
+      "",
+      "Want me to tighten this further for a beginner audience?",
+    ].join("\n");
+  }
+
+  return [
+    `A helpful way to think about "${topic.slice(0, 100)}${topic.length > 100 ? "…" : ""}":`,
+    "",
+    "In AI, we break ideas into smaller pieces the model can work with. For example, a token is a chunk of text (often part of a word) that the model reads and writes one step at a time.",
+    "",
+    "Want to try explaining that back in your own words?",
+  ].join("\n");
 }
 
 function mapError(err: unknown): AzureOpenAIError {

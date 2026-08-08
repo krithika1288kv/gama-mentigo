@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AI Factory Learning Suite | UST",
+  title: "GAMA Mentigo | UST | G.A. MENON ACADEMY",
   description:
-    "UST AI Factory Tutor and Coach agents for employee AI learning.",
+    "GAMA Mentigo Tutor and Coach agents for AI learning at UST | G.A. Menon Academy.",
 };
 
 export default function RootLayout({

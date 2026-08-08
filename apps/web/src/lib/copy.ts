@@ -4,11 +4,11 @@
  */
 export const copy = {
   brand: {
-    suiteName: "AI Factory Learning Suite",
-    org: "UST",
+    suiteName: "GAMA Mentigo",
+    org: "UST | G.A. MENON ACADEMY",
   },
   home: {
-    title: "AI Factory Learning Suite",
+    title: "GAMA Mentigo",
     subtitle:
       "Learn AI concepts with the Tutor, or sharpen your work with the Coach.",
     tutorCta: "Open Tutor Agent",
@@ -62,6 +62,10 @@ export const copy = {
   auth: {
     bypassBanner:
       "Dev auth bypass is on. Connect Azure AD before production rollout.",
+  },
+  demo: {
+    banner:
+      "Demo answers are on (Azure OpenAI is not configured yet). Add your Azure keys in apps/web/.env.local for live Tutor and Coach responses.",
   },
   common: {
     retry: "Retry",
