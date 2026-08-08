@@ -4,11 +4,11 @@
  */
 export const copy = {
   brand: {
-    suiteName: "GAMA Mentigo",
+    suiteName: "GAMA Mentigo — AI Factory Learning Suite",
     org: "UST | G.A. MENON ACADEMY",
   },
   home: {
-    title: "GAMA Mentigo",
+    title: "GAMA Mentigo — AI Factory Learning Suite",
     subtitle:
       "Learn AI concepts with the Tutor, or sharpen your work with the Coach.",
     tutorCta: "Open Tutor Agent",

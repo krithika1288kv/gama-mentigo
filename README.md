@@ -29,7 +29,21 @@ npm run dev
 
 Open http://localhost:3000
 
-Without Azure OpenAI credentials, Tutor/Coach run in **demo stream mode** so UI and plumbing can be validated.
+## Live AI answers (Anthropic workaround)
+
+1. Create a key at https://console.anthropic.com → Settings → API Keys  
+2. Open `apps/web/.env.local` and set:
+
+```env
+ANTHROPIC_API_KEY=sk-ant-your-key-here
+AUTH_BYPASS=true
+NEXT_PUBLIC_AUTH_BYPASS=true
+```
+
+3. Restart the app (`Ctrl+C`, then `npm run dev` or `scripts\fix-windows.bat`)  
+4. Refresh http://localhost:3000 — the demo banner should disappear
+
+Azure OpenAI remains supported later for production; if both are set, Anthropic is used first.
 
 ### Windows: styles missing
 
