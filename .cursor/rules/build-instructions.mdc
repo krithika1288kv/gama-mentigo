@@ -1,0 +1,15 @@
+---
+description: AI Factory Tutor & Coach agents — production build operating protocol
+globs:
+alwaysApply: true
+---
+
+Follow the Plan → Act → Validate → Refine loop in the project root build instructions (uploaded / BUILD_LOG.md).
+
+Critical rules:
+- Ask (or log an explicit assumption with default) before deciding auth, data handling, LLM cost, content sources, coach rubric, branding deviations, or scale.
+- All Azure OpenAI calls go through `apps/web/src/lib/azureOpenAI.ts`.
+- Prompts live in `apps/web/src/lib/prompts/` — never inline in route handlers.
+- Write tests before/alongside each unit; do not batch unvalidated features.
+- Keep `BUILD_LOG.md` current for every loop.
+- Use UST brand tokens; light theme; Source Sans 3 + Source Serif 4 substitutes.

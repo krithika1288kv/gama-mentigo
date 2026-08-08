@@ -1,0 +1,194 @@
+import OpenAI from "openai";
+import { createRequestId, hashUserId, logLlmCall } from "./observability";
+
+export class AzureOpenAIError extends Error {
+  constructor(
+    message: string,
+    public readonly code: "rate_limit" | "config" | "unknown" | "empty",
+    public readonly status?: number,
+  ) {
+    super(message);
+    this.name = "AzureOpenAIError";
+  }
+}
+
+export interface ChatCompletionInput {
+  system: string;
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
+  userId?: string;
+  maxTokens?: number;
+}
+
+function getConfig() {
+  const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
+  const apiKey = process.env.AZURE_OPENAI_API_KEY;
+  const deployment = process.env.AZURE_OPENAI_DEPLOYMENT;
+  const apiVersion = process.env.AZURE_OPENAI_API_VERSION ?? "2024-10-21";
+
+  return { endpoint, apiKey, deployment, apiVersion };
+}
+
+export function isAzureConfigured(): boolean {
+  const { endpoint, apiKey, deployment } = getConfig();
+  return Boolean(endpoint && apiKey && deployment);
+}
+
+function createClient(): OpenAI {
+  const { endpoint, apiKey, apiVersion } = getConfig();
+  if (!endpoint || !apiKey) {
+    throw new AzureOpenAIError(
+      "Azure OpenAI is not configured. Set AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_API_KEY.",
+      "config",
+    );
+  }
+
+  return new OpenAI({
+    apiKey,
+    baseURL: `${endpoint.replace(/\/$/, "")}/openai/deployments/${getConfig().deployment}`,
+    defaultQuery: { "api-version": apiVersion },
+    defaultHeaders: { "api-key": apiKey },
+  });
+}
+
+const DEFAULT_MAX_TOKENS = Number(process.env.MAX_TOKENS_PER_RESPONSE ?? "800");
+
+/**
+ * Single gateway for all Azure OpenAI chat calls.
+ * Never call the SDK from route handlers directly.
+ */
+export async function streamChatCompletion(
+  input: ChatCompletionInput,
+): Promise<ReadableStream<Uint8Array>> {
+  const requestId = createRequestId();
+  const userIdHash = hashUserId(input.userId ?? "anonymous");
+  const started = Date.now();
+  const maxTokens = input.maxTokens ?? DEFAULT_MAX_TOKENS;
+  const encoder = new TextEncoder();
+
+  if (!isAzureConfigured()) {
+    return mockStream(input, requestId, userIdHash, started, encoder);
+  }
+
+  const { deployment } = getConfig();
+  const client = createClient();
+
+  try {
+    const stream = await client.chat.completions.create({
+      model: deployment!,
+      max_tokens: maxTokens,
+      stream: true,
+      stream_options: { include_usage: true },
+      messages: [
+        { role: "system", content: input.system },
+        ...input.messages,
+      ],
+    });
+
+    let promptTokens: number | undefined;
+    let completionTokens: number | undefined;
+
+    return new ReadableStream<Uint8Array>({
+      async start(controller) {
+        try {
+          for await (const chunk of stream) {
+            const delta = chunk.choices[0]?.delta?.content;
+            if (delta) {
+              controller.enqueue(encoder.encode(delta));
+            }
+            if (chunk.usage) {
+              promptTokens = chunk.usage.prompt_tokens;
+              completionTokens = chunk.usage.completion_tokens;
+            }
+          }
+          logLlmCall({
+            requestId,
+            userIdHash,
+            model: deployment!,
+            latencyMs: Date.now() - started,
+            promptTokens,
+            completionTokens,
+          });
+          controller.close();
+        } catch (err) {
+          const mapped = mapError(err);
+          logLlmCall({
+            requestId,
+            userIdHash,
+            model: deployment ?? "unknown",
+            latencyMs: Date.now() - started,
+            errorState: mapped.code,
+          });
+          controller.error(mapped);
+        }
+      },
+    });
+  } catch (err) {
+    const mapped = mapError(err);
+    logLlmCall({
+      requestId,
+      userIdHash,
+      model: deployment ?? "unknown",
+      latencyMs: Date.now() - started,
+      errorState: mapped.code,
+    });
+    throw mapped;
+  }
+}
+
+function mockStream(
+  input: ChatCompletionInput,
+  requestId: string,
+  userIdHash: string,
+  started: number,
+  encoder: TextEncoder,
+): ReadableStream<Uint8Array> {
+  const lastUser = [...input.messages].reverse().find((m) => m.role === "user");
+  const preview = (lastUser?.content ?? "").slice(0, 120);
+  const text =
+    `[Demo mode — Azure OpenAI not configured]\n\n` +
+    `Received: "${preview}${preview.length >= 120 ? "…" : ""}"\n\n` +
+    `Configure AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, and AZURE_OPENAI_DEPLOYMENT ` +
+    `to enable live streaming responses.\n\n` +
+    `Want to try explaining that back in your own words?`;
+
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      for (const word of text.split(/(\s+)/)) {
+        controller.enqueue(encoder.encode(word));
+        await new Promise((r) => setTimeout(r, 8));
+      }
+      logLlmCall({
+        requestId,
+        userIdHash,
+        model: "mock-demo",
+        latencyMs: Date.now() - started,
+        promptTokens: 0,
+        completionTokens: text.split(/\s+/).length,
+      });
+      controller.close();
+    },
+  });
+}
+
+function mapError(err: unknown): AzureOpenAIError {
+  if (err instanceof AzureOpenAIError) return err;
+
+  const status =
+    typeof err === "object" && err !== null && "status" in err
+      ? Number((err as { status: number }).status)
+      : undefined;
+
+  if (status === 429) {
+    return new AzureOpenAIError(
+      "The AI service is busy. Please wait a moment and retry.",
+      "rate_limit",
+      429,
+    );
+  }
+
+  return new AzureOpenAIError(
+    "Something went wrong talking to the AI service.",
+    "unknown",
+    status,
+  );
+}
