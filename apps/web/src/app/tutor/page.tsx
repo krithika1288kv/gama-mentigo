@@ -61,11 +61,14 @@ export default function TutorPage() {
       });
 
       if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          message?: string;
+        };
         if (data.error === "empty") {
           setError(copy.tutor.errorEmpty);
         } else {
-          setError(copy.tutor.errorGeneric);
+          setError(data.message || copy.tutor.errorGeneric);
         }
         setMessages(nextHistory);
         return;

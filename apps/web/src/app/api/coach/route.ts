@@ -57,10 +57,14 @@ export async function POST(req: Request) {
       },
     });
   } catch (err) {
+    console.error("[api/coach]", err);
     if (err instanceof AzureOpenAIError) {
-      const status = err.code === "rate_limit" ? 429 : 502;
+      const status = err.code === "rate_limit" ? 429 : err.code === "config" ? 400 : 502;
       return Response.json({ error: err.code, message: err.message }, { status });
     }
-    return Response.json({ error: "unknown" }, { status: 500 });
+    return Response.json(
+      { error: "unknown", message: "The Coach is temporarily unavailable. Please try again." },
+      { status: 500 },
+    );
   }
 }

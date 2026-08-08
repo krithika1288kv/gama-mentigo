@@ -21,8 +21,17 @@ export interface ChatCompletionInput {
 }
 
 const DEFAULT_MAX_TOKENS = Number(process.env.MAX_TOKENS_PER_RESPONSE ?? "800");
-const DEFAULT_ANTHROPIC_MODEL =
-  process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5-20251001";
+const DEFAULT_ANTHROPIC_MODEL = "claude-haiku-4-5";
+
+function getAnthropicApiKey(): string {
+  return (process.env.ANTHROPIC_API_KEY ?? "")
+    .trim()
+    .replace(/^["']|["']$/g, "");
+}
+
+function getAnthropicModel(): string {
+  return (process.env.ANTHROPIC_MODEL ?? DEFAULT_ANTHROPIC_MODEL).trim() || DEFAULT_ANTHROPIC_MODEL;
+}
 
 function getAzureConfig() {
   return {
@@ -34,7 +43,7 @@ function getAzureConfig() {
 }
 
 export function isAnthropicConfigured(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY?.trim());
+  return Boolean(getAnthropicApiKey());
 }
 
 export function isAzureConfigured(): boolean {
@@ -97,11 +106,13 @@ async function streamAnthropic(
   maxTokens: number,
   encoder: TextEncoder,
 ): Promise<ReadableStream<Uint8Array>> {
-  const model = DEFAULT_ANTHROPIC_MODEL;
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const model = getAnthropicModel();
+  const apiKey = getAnthropicApiKey();
+  const client = new Anthropic({ apiKey });
 
   try {
-    const stream = client.messages.stream({
+    // Await create so auth/model errors throw BEFORE we return a Response.
+    const stream = await client.messages.create({
       model,
       max_tokens: maxTokens,
       system: input.system,
@@ -109,11 +120,13 @@ async function streamAnthropic(
         role: m.role,
         content: m.content,
       })),
+      stream: true,
     });
 
     return new ReadableStream<Uint8Array>({
       async start(controller) {
         try {
+          let completionTokens = 0;
           for await (const event of stream) {
             if (
               event.type === "content_block_delta" &&
@@ -121,20 +134,21 @@ async function streamAnthropic(
             ) {
               controller.enqueue(encoder.encode(event.delta.text));
             }
+            if (event.type === "message_delta" && event.usage) {
+              completionTokens = event.usage.output_tokens ?? completionTokens;
+            }
           }
-
-          const final = await stream.finalMessage();
           logLlmCall({
             requestId,
             userIdHash,
             model,
             latencyMs: Date.now() - started,
-            promptTokens: final.usage?.input_tokens,
-            completionTokens: final.usage?.output_tokens,
+            completionTokens,
           });
           controller.close();
         } catch (err) {
           const mapped = mapError(err);
+          console.error("[llm] anthropic stream error", mapped.message);
           logLlmCall({
             requestId,
             userIdHash,
@@ -148,6 +162,7 @@ async function streamAnthropic(
     });
   } catch (err) {
     const mapped = mapError(err);
+    console.error("[llm] anthropic request error", mapped.message);
     logLlmCall({
       requestId,
       userIdHash,
@@ -289,21 +304,53 @@ function mapError(err: unknown): AzureOpenAIError {
   if (err instanceof AzureOpenAIError) return err;
 
   const status =
-    typeof err === "object" && err !== null && "status" in err
-      ? Number((err as { status?: number }).status)
+    typeof err === "object" && err !== null
+      ? Number(
+          ("status" in err && (err as { status?: number }).status) ||
+            ("statusCode" in err && (err as { statusCode?: number }).statusCode) ||
+            undefined,
+        )
       : undefined;
+
+  const message =
+    typeof err === "object" &&
+    err !== null &&
+    "message" in err &&
+    typeof (err as { message?: unknown }).message === "string"
+      ? (err as { message: string }).message
+      : "Something went wrong talking to the AI service.";
+
+  if (status === 401 || status === 403) {
+    return new AzureOpenAIError(
+      "Anthropic rejected the API key. Open apps/web/.env.local and check ANTHROPIC_API_KEY, then restart the app.",
+      "config",
+      status,
+    );
+  }
+
+  if (status === 404 || /model/i.test(message)) {
+    return new AzureOpenAIError(
+      "The Anthropic model name is invalid. In apps/web/.env.local set ANTHROPIC_MODEL=claude-haiku-4-5 and restart.",
+      "config",
+      status,
+    );
+  }
 
   if (status === 429) {
     return new AzureOpenAIError(
-      "The AI service is busy. Please wait a moment and retry.",
+      "The AI service is busy or your Anthropic usage limit was hit. Wait a moment and retry.",
       "rate_limit",
       429,
     );
   }
 
-  return new AzureOpenAIError(
-    "Something went wrong talking to the AI service.",
-    "unknown",
-    status,
-  );
+  if (/credit|billing|purchase|quota/i.test(message)) {
+    return new AzureOpenAIError(
+      "Anthropic billing/credits issue. Add a small credit balance in the Anthropic console, then retry.",
+      "config",
+      status,
+    );
+  }
+
+  return new AzureOpenAIError(message, "unknown", Number.isFinite(status) ? status : undefined);
 }

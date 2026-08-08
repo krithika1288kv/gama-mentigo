@@ -63,8 +63,15 @@ export default function CoachPage() {
       });
 
       if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as { error?: string };
-        setError(data.error === "empty" ? copy.coach.errorEmpty : copy.coach.errorGeneric);
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          message?: string;
+        };
+        setError(
+          data.error === "empty"
+            ? copy.coach.errorEmpty
+            : data.message || copy.coach.errorGeneric,
+        );
         setMessages(messages);
         return;
       }
