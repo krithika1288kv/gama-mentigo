@@ -31,30 +31,17 @@ Open http://localhost:3000
 
 Without Azure OpenAI credentials, Tutor/Coach run in **demo stream mode** so UI and plumbing can be validated.
 
-### Windows: styles missing / Build Error about lightningcss or oxide
+### Windows: styles missing
 
-We use **Tailwind CSS v3** (no Windows native binary required).
-
-**Easiest:** double-click `scripts\fix-windows.bat`
-
-**Manual steps:**
+This app now uses **plain CSS** with UST brand tokens (no Tailwind), so Windows does not need special native packages.
 
 1. Stop the server (`Ctrl + C`).
 2. In GitHub Desktop: **Fetch origin** → **Pull origin**.
-3. In the project folder (`gama-mentigo`), run:
-
-```bat
-npm config delete os
-rmdir /s /q node_modules
-rmdir /s /q apps\web\node_modules
-rmdir /s /q apps\web\.next
-npm install
-npm run dev
-```
-
+3. Double-click `scripts\fix-windows.bat`  
+   (or run `rmdir /s /q node_modules` then `rmdir /s /q apps\web\node_modules` then `rmdir /s /q apps\web\.next` then `npm install` then `npm run dev`)
 4. Hard-refresh the browser: `Ctrl + F5` on http://localhost:3000
 
-You should see teal/off-white UST styling (not plain black text on white).
+You should see a soft off-white background and teal navigation/buttons.
 
 ## Scripts
 

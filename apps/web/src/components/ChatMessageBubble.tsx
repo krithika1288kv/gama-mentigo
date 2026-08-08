@@ -10,15 +10,11 @@ export function ChatMessageBubble({
   const isUser = role === "user";
   return (
     <div
-      className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+      className={`message-row ${isUser ? "is-user" : "is-assistant"}`}
       role="listitem"
     >
       <div
-        className={`max-w-[min(42rem,92%)] rounded-[14px] px-4 py-3 text-[15px] leading-[1.62] whitespace-pre-wrap ${
-          isUser
-            ? "bg-[color:var(--ust-dark-teal)] text-white"
-            : "bg-[color:var(--ust-white)] text-[color:var(--ust-black)] border border-[color:var(--border)]"
-        }`}
+        className={`message-bubble ${isUser ? "is-user" : "is-assistant"}`}
         aria-label={isUser ? "Your message" : "Assistant message"}
       >
         {content}

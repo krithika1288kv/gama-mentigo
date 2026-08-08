@@ -59,3 +59,20 @@ Audit trail for Plan → Act → Validate → Refine loops. One entry per unit o
 
 ### REFINE
 - n/a
+
+---
+
+## 2026-08-08 — Plain CSS UI (remove Tailwind)
+
+### PLAN
+- Windows still showed unstyled HTML after Tailwind v3 attempt.
+- Replace Tailwind entirely with plain CSS using UST brand tokens.
+
+### ACT
+- Rewrote globals.css with semantic UST classes; updated all UI components/pages; removed tailwindcss dependency.
+
+### VALIDATE
+- npm test 21/21; typecheck/build clean.
+
+### REFINE
+- n/a

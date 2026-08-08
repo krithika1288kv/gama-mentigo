@@ -85,26 +85,26 @@ export default function TutorPage() {
 
   return (
     <AppShell active="tutor">
-      <div className="page-head pt-6 pb-4">
+      <div className="page-head">
         <div className="sec-label">AI Factory</div>
         <h1>{copy.tutor.title}</h1>
         <p className="sub">{copy.tutor.subtitle}</p>
       </div>
 
-      <div className="full-band pb-4">
+      <div className="full-band section-pad">
         <LevelSelector value={level} onChange={setLevel} disabled={streaming} />
       </div>
 
-      <div className="full-band flex-1 flex flex-col min-h-0 pb-6">
+      <div className="full-band chat-panel">
         <div
           ref={listRef}
           role="list"
           aria-live="polite"
           aria-busy={streaming}
-          className="flex-1 overflow-y-auto flex flex-col gap-3 py-4 min-h-[320px] max-h-[55vh]"
+          className="chat-list"
         >
           {messages.length === 0 ? (
-            <p className="text-[15px] text-[color:var(--ust-muted)] m-0">{copy.tutor.empty}</p>
+            <p className="muted">{copy.tutor.empty}</p>
           ) : (
             messages.map((m, i) => (
               <ChatMessageBubble key={`${m.role}-${i}`} role={m.role} content={m.content} />

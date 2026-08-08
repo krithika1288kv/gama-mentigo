@@ -15,9 +15,9 @@ export function LevelSelector({
   disabled?: boolean;
 }) {
   return (
-    <fieldset className="border-0 p-0 m-0">
-      <legend className="sec-label mb-2">{copy.tutor.levelLabel}</legend>
-      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={copy.tutor.levelLabel}>
+    <fieldset className="choice-set">
+      <legend className="sec-label">{copy.tutor.levelLabel}</legend>
+      <div className="choice-row" role="radiogroup" aria-label={copy.tutor.levelLabel}>
         {LEVELS.map((level) => {
           const selected = value === level;
           return (
@@ -28,11 +28,7 @@ export function LevelSelector({
               aria-checked={selected}
               disabled={disabled}
               onClick={() => onChange(level)}
-              className={`px-3 py-2 text-sm font-semibold rounded-[8px] border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[color:var(--ust-light-teal)] focus-visible:outline-offset-[-2px] ${
-                selected
-                  ? "bg-[color:var(--ust-dark-teal)] text-white border-transparent"
-                  : "bg-[color:var(--ust-white)] text-[color:var(--ust-black)] border-[color:var(--border)] hover:border-[color:var(--border-strong)]"
-              }`}
+              className={`choice-chip${selected ? " is-selected" : ""}`}
             >
               {level}
             </button>

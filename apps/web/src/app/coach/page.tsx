@@ -123,16 +123,16 @@ export default function CoachPage() {
 
   return (
     <AppShell active="coach">
-      <div className="page-head pt-6 pb-4">
+      <div className="page-head">
         <div className="sec-label">AI Factory</div>
         <h1>{copy.coach.title}</h1>
         <p className="sub">{copy.coach.subtitle}</p>
-        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--ust-coral)] mt-2 mb-0">
+        <p className="draft-badge">
           {copy.coach.draftRubricBadge} ({RUBRIC_STATUS})
         </p>
       </div>
 
-      <div className="full-band space-y-4 pb-6">
+      <div className="full-band stack">
         <ArtifactTypeSelector
           value={artifactType}
           onChange={setArtifactType}
@@ -153,9 +153,9 @@ export default function CoachPage() {
         ) : null}
 
         {messages.length === 0 ? (
-          <p className="text-[15px] text-[color:var(--ust-muted)] m-0">{copy.coach.empty}</p>
+          <p className="muted">{copy.coach.empty}</p>
         ) : (
-          <div role="list" aria-live="polite" className="flex flex-col gap-3">
+          <div role="list" aria-live="polite" className="chat-list">
             {messages.map((m, i) => (
               <ChatMessageBubble key={`${m.role}-${i}`} role={m.role} content={m.content} />
             ))}

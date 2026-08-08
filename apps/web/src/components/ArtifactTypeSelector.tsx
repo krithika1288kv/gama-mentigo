@@ -15,10 +15,10 @@ export function ArtifactTypeSelector({
   disabled?: boolean;
 }) {
   return (
-    <fieldset className="border-0 p-0 m-0">
-      <legend className="sec-label mb-2">{copy.coach.artifactLabel}</legend>
+    <fieldset className="choice-set">
+      <legend className="sec-label">{copy.coach.artifactLabel}</legend>
       <div
-        className="flex flex-wrap gap-2"
+        className="choice-row"
         role="radiogroup"
         aria-label={copy.coach.artifactLabel}
       >
@@ -32,11 +32,7 @@ export function ArtifactTypeSelector({
               aria-checked={selected}
               disabled={disabled}
               onClick={() => onChange(type)}
-              className={`px-3 py-2 text-sm font-semibold rounded-[8px] border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[color:var(--ust-light-teal)] focus-visible:outline-offset-[-2px] ${
-                selected
-                  ? "bg-[color:var(--ust-dark-teal)] text-white border-transparent"
-                  : "bg-[color:var(--ust-white)] text-[color:var(--ust-black)] border-[color:var(--border)] hover:border-[color:var(--border-strong)]"
-              }`}
+              className={`choice-chip${selected ? " is-selected" : ""}`}
             >
               {copy.coach.artifactTypes[type]}
             </button>

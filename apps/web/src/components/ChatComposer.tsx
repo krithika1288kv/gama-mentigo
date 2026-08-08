@@ -25,7 +25,7 @@ export function ChatComposer({
 
   return (
     <form
-      className="flex flex-col gap-3 sm:flex-row sm:items-end"
+      className="composer"
       onSubmit={(e) => {
         e.preventDefault();
         if (!disabled) onSubmit();
@@ -42,7 +42,7 @@ export function ChatComposer({
           placeholder={placeholder}
           rows={rows}
           disabled={disabled}
-          className="flex-1 w-full resize-y rounded-[8px] border border-[color:var(--border)] bg-[color:var(--ust-white)] px-3 py-2 text-[15px] text-[color:var(--ust-black)] placeholder:text-[color:var(--ust-muted2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[color:var(--ust-light-teal)] focus-visible:outline-offset-[-2px]"
+          className="composer-textarea"
         />
       ) : (
         <input
@@ -52,13 +52,13 @@ export function ChatComposer({
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           disabled={disabled}
-          className="flex-1 w-full rounded-[8px] border border-[color:var(--border)] bg-[color:var(--ust-white)] px-3 py-2 text-[15px] text-[color:var(--ust-black)] placeholder:text-[color:var(--ust-muted2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[color:var(--ust-light-teal)] focus-visible:outline-offset-[-2px]"
+          className="composer-input"
         />
       )}
       <button
         type="submit"
         disabled={disabled || !value.trim()}
-        className="shrink-0 rounded-[8px] bg-[color:var(--ust-dark-teal)] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[color:var(--ust-teal-deep)] disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[color:var(--ust-light-teal)] focus-visible:outline-offset-2"
+        className="btn-primary"
       >
         {submitLabel}
       </button>
