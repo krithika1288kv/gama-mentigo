@@ -31,32 +31,30 @@ Open http://localhost:3000
 
 Without Azure OpenAI credentials, Tutor/Coach run in **demo stream mode** so UI and plumbing can be validated.
 
-### Windows fix: missing Tailwind native bindings
+### Windows: styles missing / Build Error about lightningcss or oxide
 
-If the browser shows a Build Error about `lightningcss` or `@tailwindcss/oxide-win32-x64-msvc`:
+We use **Tailwind CSS v3** (no Windows native binary required).
 
-**Easiest:** double-click `scripts\fix-windows.bat`  
-(or in Command Prompt, from the project folder: `scripts\fix-windows.bat`)
+**Easiest:** double-click `scripts\fix-windows.bat`
 
 **Manual steps:**
 
 1. Stop the server (`Ctrl + C`).
-2. In the project folder (`gama-mentigo`), run:
+2. In GitHub Desktop: **Fetch origin** → **Pull origin**.
+3. In the project folder (`gama-mentigo`), run:
 
 ```bat
 npm config delete os
-del package-lock.json
 rmdir /s /q node_modules
 rmdir /s /q apps\web\node_modules
 rmdir /s /q apps\web\.next
 npm install
-npm install @tailwindcss/oxide-win32-x64-msvc@4.3.3 lightningcss-win32-x64-msvc@1.32.0 --workspace=web
 npm run dev
 ```
 
-3. If it still fails, install [Microsoft Visual C++ Redistributable (x64)](https://aka.ms/vs/17/release/vc_redist.x64.exe), then run `npm run dev` again.
+4. Hard-refresh the browser: `Ctrl + F5` on http://localhost:3000
 
-> Important: delete **`package-lock.json`** as well as `node_modules`. Keeping the Linux lockfile is what causes the Windows helper packages to be skipped.
+You should see teal/off-white UST styling (not plain black text on white).
 
 ## Scripts
 

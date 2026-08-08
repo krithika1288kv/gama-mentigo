@@ -19,7 +19,7 @@ export function AppShell({
         <div className="full-band flex items-center justify-between gap-4 py-3">
           <Link href="/" className="no-underline hover:opacity-90">
             <div className="sec-label">{copy.brand.org}</div>
-            <div className="font-[family-name:var(--font-body)] text-[1.05rem] font-semibold text-[color:var(--ust-black)]">
+            <div className="font-body text-[1.05rem] font-semibold text-[color:var(--ust-black)]">
               {copy.brand.suiteName}
             </div>
           </Link>

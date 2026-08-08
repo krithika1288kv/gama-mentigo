@@ -40,3 +40,22 @@ Audit trail for Plan → Act → Validate → Refine loops. One entry per unit o
 ### REFINE
 - Removed nested `apps/web/package-lock.json` to avoid dual-lockfile Turbopack root warning
 - Demo stream path confirmed for unconfigured Azure OpenAI (M0 hello-world streaming UX)
+
+---
+
+## 2026-08-08 — Windows CSS fix (Tailwind v3)
+
+### PLAN
+- User on Windows saw unstyled HTML / oxide+lightningcss native binding failures with Tailwind v4.
+- Switch to Tailwind CSS v3 + classic PostCSS (no native oxide) while keeping UST brand tokens.
+
+### ACT
+- Replaced `@tailwindcss/postcss` v4 with `tailwindcss@3.4.17`, `postcss`, `autoprefixer`.
+- Added `tailwind.config.js`; updated `globals.css` to `@tailwind` directives; simplified `fix-windows.bat`.
+
+### VALIDATE
+- `npm test` — 21/21 passed
+- `npm run typecheck` / `build` — clean with Tailwind v3
+
+### REFINE
+- n/a
