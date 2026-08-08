@@ -65,7 +65,7 @@ export const copy = {
   },
   demo: {
     banner:
-      "Demo answers are on (Azure OpenAI is not configured yet). Add your Azure keys in apps/web/.env.local for live Tutor and Coach responses.",
+      "Demo answers are on. Add ANTHROPIC_API_KEY in apps/web/.env.local, then restart the app for live Tutor and Coach responses.",
   },
   common: {
     retry: "Retry",

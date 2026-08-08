@@ -1,3 +1,4 @@
+import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { createRequestId, hashUserId, logLlmCall } from "./observability";
 
@@ -19,42 +20,54 @@ export interface ChatCompletionInput {
   maxTokens?: number;
 }
 
-function getConfig() {
-  const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
-  const apiKey = process.env.AZURE_OPENAI_API_KEY;
-  const deployment = process.env.AZURE_OPENAI_DEPLOYMENT;
-  const apiVersion = process.env.AZURE_OPENAI_API_VERSION ?? "2024-10-21";
+const DEFAULT_MAX_TOKENS = Number(process.env.MAX_TOKENS_PER_RESPONSE ?? "800");
+const DEFAULT_ANTHROPIC_MODEL =
+  process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5-20251001";
 
-  return { endpoint, apiKey, deployment, apiVersion };
+function getAzureConfig() {
+  return {
+    endpoint: process.env.AZURE_OPENAI_ENDPOINT,
+    apiKey: process.env.AZURE_OPENAI_API_KEY,
+    deployment: process.env.AZURE_OPENAI_DEPLOYMENT,
+    apiVersion: process.env.AZURE_OPENAI_API_VERSION ?? "2024-10-21",
+  };
+}
+
+export function isAnthropicConfigured(): boolean {
+  return Boolean(process.env.ANTHROPIC_API_KEY?.trim());
 }
 
 export function isAzureConfigured(): boolean {
-  const { endpoint, apiKey, deployment } = getConfig();
+  const { endpoint, apiKey, deployment } = getAzureConfig();
   return Boolean(endpoint && apiKey && deployment);
 }
 
-function createClient(): OpenAI {
-  const { endpoint, apiKey, apiVersion } = getConfig();
-  if (!endpoint || !apiKey) {
+/** True when any live LLM provider is ready (Anthropic or Azure). */
+export function isLlmConfigured(): boolean {
+  return isAnthropicConfigured() || isAzureConfigured();
+}
+
+function createAzureClient(): OpenAI {
+  const { endpoint, apiKey, apiVersion, deployment } = getAzureConfig();
+  if (!endpoint || !apiKey || !deployment) {
     throw new AzureOpenAIError(
-      "Azure OpenAI is not configured. Set AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_API_KEY.",
+      "Azure OpenAI is not configured. Set AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, and AZURE_OPENAI_DEPLOYMENT.",
       "config",
     );
   }
 
   return new OpenAI({
     apiKey,
-    baseURL: `${endpoint.replace(/\/$/, "")}/openai/deployments/${getConfig().deployment}`,
+    baseURL: `${endpoint.replace(/\/$/, "")}/openai/deployments/${deployment}`,
     defaultQuery: { "api-version": apiVersion },
     defaultHeaders: { "api-key": apiKey },
   });
 }
 
-const DEFAULT_MAX_TOKENS = Number(process.env.MAX_TOKENS_PER_RESPONSE ?? "800");
-
 /**
- * Single gateway for all Azure OpenAI chat calls.
- * Never call the SDK from route handlers directly.
+ * Single gateway for all LLM chat calls.
+ * Prefer Anthropic when configured; else Azure OpenAI; else demo stream.
+ * Never call provider SDKs from route handlers directly.
  */
 export async function streamChatCompletion(
   input: ChatCompletionInput,
@@ -65,12 +78,97 @@ export async function streamChatCompletion(
   const maxTokens = input.maxTokens ?? DEFAULT_MAX_TOKENS;
   const encoder = new TextEncoder();
 
-  if (!isAzureConfigured()) {
-    return mockStream(input, requestId, userIdHash, started, encoder);
+  if (isAnthropicConfigured()) {
+    return streamAnthropic(input, requestId, userIdHash, started, maxTokens, encoder);
   }
 
-  const { deployment } = getConfig();
-  const client = createClient();
+  if (isAzureConfigured()) {
+    return streamAzure(input, requestId, userIdHash, started, maxTokens, encoder);
+  }
+
+  return mockStream(input, requestId, userIdHash, started, encoder);
+}
+
+async function streamAnthropic(
+  input: ChatCompletionInput,
+  requestId: string,
+  userIdHash: string,
+  started: number,
+  maxTokens: number,
+  encoder: TextEncoder,
+): Promise<ReadableStream<Uint8Array>> {
+  const model = DEFAULT_ANTHROPIC_MODEL;
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+  try {
+    const stream = client.messages.stream({
+      model,
+      max_tokens: maxTokens,
+      system: input.system,
+      messages: input.messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+      })),
+    });
+
+    return new ReadableStream<Uint8Array>({
+      async start(controller) {
+        try {
+          for await (const event of stream) {
+            if (
+              event.type === "content_block_delta" &&
+              event.delta.type === "text_delta"
+            ) {
+              controller.enqueue(encoder.encode(event.delta.text));
+            }
+          }
+
+          const final = await stream.finalMessage();
+          logLlmCall({
+            requestId,
+            userIdHash,
+            model,
+            latencyMs: Date.now() - started,
+            promptTokens: final.usage?.input_tokens,
+            completionTokens: final.usage?.output_tokens,
+          });
+          controller.close();
+        } catch (err) {
+          const mapped = mapError(err);
+          logLlmCall({
+            requestId,
+            userIdHash,
+            model,
+            latencyMs: Date.now() - started,
+            errorState: mapped.code,
+          });
+          controller.error(mapped);
+        }
+      },
+    });
+  } catch (err) {
+    const mapped = mapError(err);
+    logLlmCall({
+      requestId,
+      userIdHash,
+      model,
+      latencyMs: Date.now() - started,
+      errorState: mapped.code,
+    });
+    throw mapped;
+  }
+}
+
+async function streamAzure(
+  input: ChatCompletionInput,
+  requestId: string,
+  userIdHash: string,
+  started: number,
+  maxTokens: number,
+  encoder: TextEncoder,
+): Promise<ReadableStream<Uint8Array>> {
+  const { deployment } = getAzureConfig();
+  const client = createAzureClient();
 
   try {
     const stream = await client.chat.completions.create({
@@ -78,10 +176,7 @@ export async function streamChatCompletion(
       max_tokens: maxTokens,
       stream: true,
       stream_options: { include_usage: true },
-      messages: [
-        { role: "system", content: input.system },
-        ...input.messages,
-      ],
+      messages: [{ role: "system", content: input.system }, ...input.messages],
     });
 
     let promptTokens: number | undefined;
@@ -92,9 +187,7 @@ export async function streamChatCompletion(
         try {
           for await (const chunk of stream) {
             const delta = chunk.choices[0]?.delta?.content;
-            if (delta) {
-              controller.enqueue(encoder.encode(delta));
-            }
+            if (delta) controller.enqueue(encoder.encode(delta));
             if (chunk.usage) {
               promptTokens = chunk.usage.prompt_tokens;
               completionTokens = chunk.usage.completion_tokens;
@@ -164,7 +257,6 @@ function mockStream(
   });
 }
 
-/** Offline-friendly demo replies when Azure OpenAI is not configured. */
 function buildDemoReply(system: string, userText: string): string {
   const isCoach = system.includes("Coach Agent");
   const topic = userText.trim() || "your question";
@@ -198,7 +290,7 @@ function mapError(err: unknown): AzureOpenAIError {
 
   const status =
     typeof err === "object" && err !== null && "status" in err
-      ? Number((err as { status: number }).status)
+      ? Number((err as { status?: number }).status)
       : undefined;
 
   if (status === 429) {

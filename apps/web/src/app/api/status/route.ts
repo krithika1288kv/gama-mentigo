@@ -1,10 +1,10 @@
-import { isAzureConfigured } from "@/lib/azureOpenAI";
+import { isLlmConfigured } from "@/lib/azureOpenAI";
 
 export const runtime = "nodejs";
 
 export async function GET() {
   return Response.json({
-    llmConfigured: isAzureConfigured(),
+    llmConfigured: isLlmConfigured(),
     product: "GAMA Mentigo",
   });
 }

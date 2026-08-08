@@ -110,3 +110,20 @@ Audit trail for Plan → Act → Validate → Refine loops. One entry per unit o
 
 ### REFINE
 - n/a
+
+---
+
+## 2026-08-08 — Anthropic provider workaround
+
+### PLAN
+- User needs live answers without Azure; use Anthropic API key workaround.
+
+### ACT
+- Added @anthropic-ai/sdk; gateway prefers Anthropic, then Azure, then demo.
+- Updated .env.example, status endpoint, demo banner copy, tests.
+
+### VALIDATE
+- 23/23 tests; typecheck/build clean.
+
+### REFINE
+- n/a
