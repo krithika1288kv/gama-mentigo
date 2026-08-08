@@ -31,24 +31,32 @@ Open http://localhost:3000
 
 Without Azure OpenAI credentials, Tutor/Coach run in **demo stream mode** so UI and plumbing can be validated.
 
-### Windows fix: `lightningcss.win32-x64-msvc.node` missing
+### Windows fix: missing Tailwind native bindings
 
-If the browser shows a Build Error about `lightningcss.win32-x64-msvc.node`:
+If the browser shows a Build Error about `lightningcss` or `@tailwindcss/oxide-win32-x64-msvc`:
+
+**Easiest:** double-click `scripts\fix-windows.bat`  
+(or in Command Prompt, from the project folder: `scripts\fix-windows.bat`)
+
+**Manual steps:**
 
 1. Stop the server (`Ctrl + C`).
-2. In the project folder, run:
+2. In the project folder (`gama-mentigo`), run:
 
 ```bat
 npm config delete os
+del package-lock.json
 rmdir /s /q node_modules
 rmdir /s /q apps\web\node_modules
 rmdir /s /q apps\web\.next
 npm install
-npm install lightningcss-win32-x64-msvc --workspace=web
+npm install @tailwindcss/oxide-win32-x64-msvc@4.3.3 lightningcss-win32-x64-msvc@1.32.0 --workspace=web
 npm run dev
 ```
 
 3. If it still fails, install [Microsoft Visual C++ Redistributable (x64)](https://aka.ms/vs/17/release/vc_redist.x64.exe), then run `npm run dev` again.
+
+> Important: delete **`package-lock.json`** as well as `node_modules`. Keeping the Linux lockfile is what causes the Windows helper packages to be skipped.
 
 ## Scripts
 
