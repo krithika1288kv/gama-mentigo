@@ -1,10 +1,8 @@
 import type { NextConfig } from "next";
-import path from "path";
 
 const nextConfig: NextConfig = {
-  turbopack: {
-    root: path.join(__dirname, "../.."),
-  },
+  // Keep the default webpack bundler for Windows reliability
+  // (Turbopack + next/font had module resolution failures locally).
 };
 
 export default nextConfig;

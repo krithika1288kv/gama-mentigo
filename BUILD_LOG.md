@@ -76,3 +76,20 @@ Audit trail for Plan → Act → Validate → Refine loops. One entry per unit o
 
 ### REFINE
 - n/a
+
+---
+
+## 2026-08-08 — Fix Turbopack Google Fonts crash on Windows
+
+### PLAN
+- User hit Module not found `@vercel/turbopack-next/internal/font/google/font`.
+- Avoid next/font + Turbopack; use Google Fonts <link> and webpack `next dev`.
+
+### ACT
+- Updated layout.tsx fonts; removed `--turbopack` from scripts; simplified next.config.
+
+### VALIDATE
+- (after test/build)
+
+### REFINE
+- n/a
