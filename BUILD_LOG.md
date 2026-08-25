@@ -127,3 +127,20 @@ Audit trail for Plan → Act → Validate → Refine loops. One entry per unit o
 
 ### REFINE
 - n/a
+
+---
+
+## 2026-08-25 — OpenRouter provider
+
+### PLAN
+- Anthropic still failing for user; switch preferred live provider to OpenRouter.
+
+### ACT
+- Added OpenRouter (OpenAI-compatible) as first-choice LLM provider.
+- Updated env example, status provider, demo banner, tests.
+
+### VALIDATE
+- 24/24 tests; typecheck/build clean.
+
+### REFINE
+- Remind user to rotate exposed key; never commit secrets.

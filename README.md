@@ -29,13 +29,14 @@ npm run dev
 
 Open http://localhost:3000
 
-## Live AI answers (Anthropic workaround)
+## Live AI answers (OpenRouter workaround)
 
-1. Create a key at https://console.anthropic.com → Settings → API Keys  
+1. Create a key at https://openrouter.ai/keys  
 2. Open `apps/web/.env.local` and set:
 
 ```env
-ANTHROPIC_API_KEY=sk-ant-your-key-here
+OPENROUTER_API_KEY=sk-or-v1-your-key-here
+OPENROUTER_MODEL=openai/gpt-4o-mini
 AUTH_BYPASS=true
 NEXT_PUBLIC_AUTH_BYPASS=true
 ```
@@ -43,7 +44,8 @@ NEXT_PUBLIC_AUTH_BYPASS=true
 3. Restart the app (`Ctrl+C`, then `npm run dev` or `scripts\fix-windows.bat`)  
 4. Refresh http://localhost:3000 — the demo banner should disappear
 
-Azure OpenAI remains supported later for production; if both are set, Anthropic is used first.
+Provider order: **OpenRouter → Anthropic → Azure OpenAI → demo**.  
+Never commit API keys. If a key was pasted into chat, rotate it in the provider console.
 
 ### Windows: styles missing
 

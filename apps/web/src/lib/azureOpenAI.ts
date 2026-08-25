@@ -22,15 +22,31 @@ export interface ChatCompletionInput {
 
 const DEFAULT_MAX_TOKENS = Number(process.env.MAX_TOKENS_PER_RESPONSE ?? "800");
 const DEFAULT_ANTHROPIC_MODEL = "claude-haiku-4-5";
+const DEFAULT_OPENROUTER_MODEL = "openai/gpt-4o-mini";
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+
+function cleanSecret(value: string | undefined): string {
+  return (value ?? "").trim().replace(/^["']|["']$/g, "");
+}
 
 function getAnthropicApiKey(): string {
-  return (process.env.ANTHROPIC_API_KEY ?? "")
-    .trim()
-    .replace(/^["']|["']$/g, "");
+  return cleanSecret(process.env.ANTHROPIC_API_KEY);
 }
 
 function getAnthropicModel(): string {
-  return (process.env.ANTHROPIC_MODEL ?? DEFAULT_ANTHROPIC_MODEL).trim() || DEFAULT_ANTHROPIC_MODEL;
+  return (
+    cleanSecret(process.env.ANTHROPIC_MODEL) || DEFAULT_ANTHROPIC_MODEL
+  );
+}
+
+function getOpenRouterApiKey(): string {
+  return cleanSecret(process.env.OPENROUTER_API_KEY);
+}
+
+function getOpenRouterModel(): string {
+  return (
+    cleanSecret(process.env.OPENROUTER_MODEL) || DEFAULT_OPENROUTER_MODEL
+  );
 }
 
 function getAzureConfig() {
@@ -42,6 +58,10 @@ function getAzureConfig() {
   };
 }
 
+export function isOpenRouterConfigured(): boolean {
+  return Boolean(getOpenRouterApiKey());
+}
+
 export function isAnthropicConfigured(): boolean {
   return Boolean(getAnthropicApiKey());
 }
@@ -51,9 +71,24 @@ export function isAzureConfigured(): boolean {
   return Boolean(endpoint && apiKey && deployment);
 }
 
-/** True when any live LLM provider is ready (Anthropic or Azure). */
+/** True when any live LLM provider is ready. */
 export function isLlmConfigured(): boolean {
-  return isAnthropicConfigured() || isAzureConfigured();
+  return (
+    isOpenRouterConfigured() ||
+    isAnthropicConfigured() ||
+    isAzureConfigured()
+  );
+}
+
+export function getActiveLlmProvider():
+  | "openrouter"
+  | "anthropic"
+  | "azure"
+  | "demo" {
+  if (isOpenRouterConfigured()) return "openrouter";
+  if (isAnthropicConfigured()) return "anthropic";
+  if (isAzureConfigured()) return "azure";
+  return "demo";
 }
 
 function createAzureClient(): OpenAI {
@@ -75,7 +110,7 @@ function createAzureClient(): OpenAI {
 
 /**
  * Single gateway for all LLM chat calls.
- * Prefer Anthropic when configured; else Azure OpenAI; else demo stream.
+ * Prefer OpenRouter, then Anthropic, then Azure OpenAI, else demo stream.
  * Never call provider SDKs from route handlers directly.
  */
 export async function streamChatCompletion(
@@ -87,6 +122,10 @@ export async function streamChatCompletion(
   const maxTokens = input.maxTokens ?? DEFAULT_MAX_TOKENS;
   const encoder = new TextEncoder();
 
+  if (isOpenRouterConfigured()) {
+    return streamOpenRouter(input, requestId, userIdHash, started, maxTokens, encoder);
+  }
+
   if (isAnthropicConfigured()) {
     return streamAnthropic(input, requestId, userIdHash, started, maxTokens, encoder);
   }
@@ -96,6 +135,84 @@ export async function streamChatCompletion(
   }
 
   return mockStream(input, requestId, userIdHash, started, encoder);
+}
+
+async function streamOpenRouter(
+  input: ChatCompletionInput,
+  requestId: string,
+  userIdHash: string,
+  started: number,
+  maxTokens: number,
+  encoder: TextEncoder,
+): Promise<ReadableStream<Uint8Array>> {
+  const model = getOpenRouterModel();
+  const client = new OpenAI({
+    apiKey: getOpenRouterApiKey(),
+    baseURL: OPENROUTER_BASE_URL,
+    defaultHeaders: {
+      "HTTP-Referer": process.env.OPENROUTER_SITE_URL ?? "http://localhost:3000",
+      "X-Title": process.env.OPENROUTER_APP_NAME ?? "GAMA Mentigo",
+    },
+  });
+
+  try {
+    const stream = await client.chat.completions.create({
+      model,
+      max_tokens: maxTokens,
+      stream: true,
+      stream_options: { include_usage: true },
+      messages: [{ role: "system", content: input.system }, ...input.messages],
+    });
+
+    let promptTokens: number | undefined;
+    let completionTokens: number | undefined;
+
+    return new ReadableStream<Uint8Array>({
+      async start(controller) {
+        try {
+          for await (const chunk of stream) {
+            const delta = chunk.choices[0]?.delta?.content;
+            if (delta) controller.enqueue(encoder.encode(delta));
+            if (chunk.usage) {
+              promptTokens = chunk.usage.prompt_tokens;
+              completionTokens = chunk.usage.completion_tokens;
+            }
+          }
+          logLlmCall({
+            requestId,
+            userIdHash,
+            model: `openrouter:${model}`,
+            latencyMs: Date.now() - started,
+            promptTokens,
+            completionTokens,
+          });
+          controller.close();
+        } catch (err) {
+          const mapped = mapError(err, "openrouter");
+          console.error("[llm] openrouter stream error", mapped.message);
+          logLlmCall({
+            requestId,
+            userIdHash,
+            model: `openrouter:${model}`,
+            latencyMs: Date.now() - started,
+            errorState: mapped.code,
+          });
+          controller.error(mapped);
+        }
+      },
+    });
+  } catch (err) {
+    const mapped = mapError(err, "openrouter");
+    console.error("[llm] openrouter request error", mapped.message);
+    logLlmCall({
+      requestId,
+      userIdHash,
+      model: `openrouter:${model}`,
+      latencyMs: Date.now() - started,
+      errorState: mapped.code,
+    });
+    throw mapped;
+  }
 }
 
 async function streamAnthropic(
@@ -147,7 +264,7 @@ async function streamAnthropic(
           });
           controller.close();
         } catch (err) {
-          const mapped = mapError(err);
+          const mapped = mapError(err, "anthropic");
           console.error("[llm] anthropic stream error", mapped.message);
           logLlmCall({
             requestId,
@@ -161,7 +278,7 @@ async function streamAnthropic(
       },
     });
   } catch (err) {
-    const mapped = mapError(err);
+    const mapped = mapError(err, "anthropic");
     console.error("[llm] anthropic request error", mapped.message);
     logLlmCall({
       requestId,
@@ -218,7 +335,7 @@ async function streamAzure(
           });
           controller.close();
         } catch (err) {
-          const mapped = mapError(err);
+          const mapped = mapError(err, "azure");
           logLlmCall({
             requestId,
             userIdHash,
@@ -231,7 +348,7 @@ async function streamAzure(
       },
     });
   } catch (err) {
-    const mapped = mapError(err);
+    const mapped = mapError(err, "azure");
     logLlmCall({
       requestId,
       userIdHash,
@@ -300,7 +417,10 @@ function buildDemoReply(system: string, userText: string): string {
   ].join("\n");
 }
 
-function mapError(err: unknown): AzureOpenAIError {
+function mapError(
+  err: unknown,
+  provider: "openrouter" | "anthropic" | "azure" = "anthropic",
+): AzureOpenAIError {
   if (err instanceof AzureOpenAIError) return err;
 
   const status =
@@ -320,17 +440,37 @@ function mapError(err: unknown): AzureOpenAIError {
       ? (err as { message: string }).message
       : "Something went wrong talking to the AI service.";
 
+  const providerLabel =
+    provider === "openrouter"
+      ? "OpenRouter"
+      : provider === "azure"
+        ? "Azure OpenAI"
+        : "Anthropic";
+
+  const keyVar =
+    provider === "openrouter"
+      ? "OPENROUTER_API_KEY"
+      : provider === "azure"
+        ? "AZURE_OPENAI_API_KEY"
+        : "ANTHROPIC_API_KEY";
+
   if (status === 401 || status === 403) {
     return new AzureOpenAIError(
-      "Anthropic rejected the API key. Open apps/web/.env.local and check ANTHROPIC_API_KEY, then restart the app.",
+      `${providerLabel} rejected the API key. Open apps/web/.env.local and check ${keyVar}, then restart the app.`,
       "config",
       status,
     );
   }
 
   if (status === 404 || /model/i.test(message)) {
+    const modelHint =
+      provider === "openrouter"
+        ? "OPENROUTER_MODEL=openai/gpt-4o-mini"
+        : provider === "azure"
+          ? "AZURE_OPENAI_DEPLOYMENT"
+          : "ANTHROPIC_MODEL=claude-haiku-4-5";
     return new AzureOpenAIError(
-      "The Anthropic model name is invalid. In apps/web/.env.local set ANTHROPIC_MODEL=claude-haiku-4-5 and restart.",
+      `The ${providerLabel} model name is invalid. In apps/web/.env.local set ${modelHint} and restart.`,
       "config",
       status,
     );
@@ -338,15 +478,15 @@ function mapError(err: unknown): AzureOpenAIError {
 
   if (status === 429) {
     return new AzureOpenAIError(
-      "The AI service is busy or your Anthropic usage limit was hit. Wait a moment and retry.",
+      `The AI service is busy or your ${providerLabel} usage limit was hit. Wait a moment and retry.`,
       "rate_limit",
       429,
     );
   }
 
-  if (/credit|billing|purchase|quota/i.test(message)) {
+  if (/credit|billing|purchase|quota|insufficient/i.test(message)) {
     return new AzureOpenAIError(
-      "Anthropic billing/credits issue. Add a small credit balance in the Anthropic console, then retry.",
+      `${providerLabel} billing/credits issue. Add credit in the ${providerLabel} console, then retry.`,
       "config",
       status,
     );
