@@ -1,6 +1,21 @@
 {
-  "name": "gama-mentigo",
-  "version": "1.0.0",
-  "description": "GAMA Mentigo - Token Intelligence Tutor & Coach",
-  "private": true
+  "name": "ust-ai-factory-learning-suite",
+  "version": "0.1.0",
+  "private": true,
+  "description": "UST AI Factory Learning Suite — Tutor Agent & Coach Agent",
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w web",
+    "build": "npm run build -w web",
+    "start": "npm run start -w web",
+    "lint": "npm run lint -w web",
+    "test": "npm run test -w web",
+    "typecheck": "npm run typecheck -w web"
+  },
+  "supportedArchitectures": {
+    "os": ["win32", "linux", "darwin"],
+    "cpu": ["x64", "arm64"]
+  }
 }
