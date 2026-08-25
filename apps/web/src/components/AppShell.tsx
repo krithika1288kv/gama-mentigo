@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { copy } from "@/lib/copy";
 import { isAuthBypassEnabled } from "@/lib/auth-client";
 
+type Provider = "openrouter" | "anthropic" | "azure" | "demo";
+
 export function AppShell({
   children,
   active,
@@ -13,17 +15,22 @@ export function AppShell({
   active?: "home" | "tutor" | "coach";
 }) {
   const bypass = isAuthBypassEnabled();
-  const [demoMode, setDemoMode] = useState(false);
+  const [provider, setProvider] = useState<Provider | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     fetch("/api/status")
       .then((res) => res.json())
-      .then((data: { llmConfigured?: boolean }) => {
-        if (!cancelled) setDemoMode(!data.llmConfigured);
+      .then((data: { provider?: Provider; llmConfigured?: boolean }) => {
+        if (cancelled) return;
+        if (data.provider) {
+          setProvider(data.provider);
+          return;
+        }
+        setProvider(data.llmConfigured ? "openrouter" : "demo");
       })
       .catch(() => {
-        if (!cancelled) setDemoMode(true);
+        if (!cancelled) setProvider("demo");
       });
     return () => {
       cancelled = true;
@@ -49,9 +56,14 @@ export function AppShell({
             {copy.auth.bypassBanner}
           </div>
         ) : null}
-        {demoMode ? (
+        {provider === "demo" ? (
           <div className="full-band demo-banner" role="status">
             {copy.demo.banner}
+          </div>
+        ) : null}
+        {provider && provider !== "demo" ? (
+          <div className="full-band live-banner" role="status">
+            {copy.provider[provider]}
           </div>
         ) : null}
       </header>

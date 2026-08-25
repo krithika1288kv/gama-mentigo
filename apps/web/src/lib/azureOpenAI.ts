@@ -392,9 +392,12 @@ function mockStream(
 function buildDemoReply(system: string, userText: string): string {
   const isCoach = system.includes("Coach Agent");
   const topic = userText.trim() || "your question";
+  const lower = topic.toLowerCase();
 
   if (isCoach) {
     return [
+      "[Demo mode — not live AI]",
+      "",
       "## What worked",
       `You shared a concrete artifact to review ("${topic.slice(0, 80)}${topic.length > 80 ? "…" : ""}"), which gives the Coach something specific to improve.`,
       "",
@@ -404,16 +407,37 @@ function buildDemoReply(system: string, userText: string): string {
       "## Suggested rewrite",
       `Goal: improve the artifact above.\nAudience: a busy teammate.\nConstraints: keep it concise and actionable.\nDraft:\n${topic.slice(0, 400)}`,
       "",
-      "Want me to tighten this further for a beginner audience?",
+      "Add OPENROUTER_API_KEY in apps/web/.env.local and restart for live coaching.",
     ].join("\n");
   }
 
+  let explanation =
+    "I can give only a short practice reply in demo mode. Once OpenRouter is connected, answers will change for each question.";
+
+  if (lower.includes("token")) {
+    explanation =
+      "A token is a small chunk of text (often part of a word) that an AI model reads and writes one step at a time. More tokens usually means higher cost and longer context.";
+  } else if (lower.includes("prompt")) {
+    explanation =
+      "A prompt is the instruction you give an AI. Clear goal + context + format usually produces better results than a vague one-liner.";
+  } else if (lower.includes("llm") || lower.includes("large language")) {
+    explanation =
+      "An LLM (large language model) predicts the next token based on patterns learned from lots of text. It can sound smart, but it can also be wrong.";
+  } else if (lower.includes("rag")) {
+    explanation =
+      "RAG (retrieval-augmented generation) means: look up relevant documents first, then ask the model to answer using those documents.";
+  } else {
+    explanation = `About "${topic.slice(0, 120)}${topic.length > 120 ? "…" : ""}": in demo mode I only return a short placeholder. Connect OpenRouter to get a real answer tailored to this question.`;
+  }
+
   return [
-    `A helpful way to think about "${topic.slice(0, 100)}${topic.length > 100 ? "…" : ""}":`,
+    "[Demo mode — not live AI]",
     "",
-    "In AI, we break ideas into smaller pieces the model can work with. For example, a token is a chunk of text (often part of a word) that the model reads and writes one step at a time.",
+    explanation,
     "",
     "Want to try explaining that back in your own words?",
+    "",
+    "To get live answers: set OPENROUTER_API_KEY in apps/web/.env.local, save, restart the app, then hard-refresh.",
   ].join("\n");
 }
 

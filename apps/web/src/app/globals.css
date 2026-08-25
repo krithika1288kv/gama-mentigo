@@ -244,6 +244,15 @@ h2 {
   border-top: 1px solid var(--border);
 }
 
+.live-banner {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--ust-teal-deep);
+  background: rgba(10, 155, 114, 0.1);
+  border-top: 1px solid var(--border);
+}
+
 .app-main {
   flex: 1;
   display: flex;

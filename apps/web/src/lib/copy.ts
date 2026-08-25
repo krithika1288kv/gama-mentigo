@@ -67,6 +67,11 @@ export const copy = {
     banner:
       "Demo answers are on. Add OPENROUTER_API_KEY in apps/web/.env.local, then restart the app for live Tutor and Coach responses.",
   },
+  provider: {
+    openrouter: "Live AI: OpenRouter",
+    anthropic: "Live AI: Anthropic",
+    azure: "Live AI: Azure OpenAI",
+  },
   common: {
     retry: "Retry",
     loading: "Loading…",

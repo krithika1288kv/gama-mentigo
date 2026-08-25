@@ -1,6 +1,10 @@
 import { getServerSession } from "next-auth";
 import { authOptions, isAuthBypassEnabled } from "@/lib/auth";
-import { AzureOpenAIError, streamChatCompletion } from "@/lib/azureOpenAI";
+import {
+  AzureOpenAIError,
+  getActiveLlmProvider,
+  streamChatCompletion,
+} from "@/lib/azureOpenAI";
 import { findContentForQuery } from "@/lib/contentIndex";
 import { buildCoachSystemPrompt } from "@/lib/prompts/coach";
 import { parseCoachRequest } from "@/lib/validation";
@@ -54,6 +58,7 @@ export async function POST(req: Request) {
         "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-cache",
         "X-Content-Type-Options": "nosniff",
+        "X-Gama-Provider": getActiveLlmProvider(),
       },
     });
   } catch (err) {
